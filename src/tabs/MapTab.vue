@@ -249,7 +249,13 @@
             .enter()
             .append('path')
             .attr('d', path)
-            .attr('fill', '#d0d0d0')
+            .attr('fill', (d) => {
+              // 檢查國家顏色：台灣(紅色) > 已造訪(淺藍色) > 其他(淺灰色)
+              const countryName = d.properties.name || d.properties.ADMIN || d.properties.NAME;
+              if (dataStore.isHomeCountry(countryName)) return '#ff9999'; // 台灣：紅色
+              if (dataStore.isCountryVisited(countryName)) return '#cce5ff'; // 已造訪：淺藍色
+              return '#d0d0d0'; // 其他：淺灰色
+            })
             .attr('stroke', '#666666')
             .attr('stroke-width', 0.5)
             .attr('class', 'country');
@@ -461,8 +467,6 @@
   <div id="map-container" class="h-100 w-100 position-relative bg-transparent z-0">
     <!-- 🗺️ D3.js 地圖容器 -->
     <div :id="mapContainerId" ref="mapContainer" class="h-100 w-100"></div>
-
-    <!-- 距離圓圈現在使用 D3.js 繪製 -->
   </div>
 </template>
 
