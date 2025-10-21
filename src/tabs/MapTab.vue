@@ -174,6 +174,7 @@
        * 🔵 繪製以投影中心為圓心的同心距離圓
        * 每 5000 公里一圈，淺灰虛線，永遠位於地圖上層
        * 最多繪製到 15000 公里（3 圈）
+       * 地球邊界（180°）繪製實線圓圈
        */
       const drawDistanceRings = () => {
         if (!svg || !projection || !mapContainer.value) return;
@@ -192,8 +193,12 @@
           const distanceMeters = stepMeters * i;
           if (distanceMeters > maxDistanceMeters) break;
           const radiusPx = scale * (distanceMeters / earthRadiusMeters);
-          rings.push({ index: i, radiusPx });
+          rings.push({ index: i, radiusPx, type: 'distance' });
         }
+
+        // 加入地球邊界圓（180° = π * R，在方位等距投影中對應到 scale * π）
+        const earthBoundaryRadiusPx = scale * Math.PI;
+        rings.push({ index: 999, radiusPx: earthBoundaryRadiusPx, type: 'boundary' });
 
         if (!ringsGroup) {
           ringsGroup = svg
@@ -213,13 +218,13 @@
           .append('circle')
           .attr('class', 'ring')
           .attr('fill', 'none')
-          .attr('stroke', '#cccccc')
-          .attr('stroke-width', 1)
-          .attr('stroke-dasharray', '6,6')
           .merge(selection)
           .attr('cx', cx)
           .attr('cy', cy)
-          .attr('r', (d) => d.radiusPx);
+          .attr('r', (d) => d.radiusPx)
+          .attr('stroke', (d) => (d.type === 'boundary' ? '#666666' : '#cccccc'))
+          .attr('stroke-width', (d) => (d.type === 'boundary' ? 2 : 1))
+          .attr('stroke-dasharray', (d) => (d.type === 'boundary' ? 'none' : '6,6'));
 
         selection.exit().remove();
       };
