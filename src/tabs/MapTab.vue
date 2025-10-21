@@ -181,25 +181,33 @@
         // 在地球上，距離 = 角度 * 地球半徑
         const angle = targetDistance / earthRadius;
 
+        // 獲取當前投影的旋轉中心（即地圖中心）
+        const rotation = projection.rotate();
+        const centerLng = -rotation[0]; // 經度
+        const centerLat = -rotation[1]; // 緯度
+
+        console.log('[MapTab] 當前地圖中心:', [centerLng, centerLat]);
+
         // 創建圓圈路徑
         const circle = d3
           .geoCircle()
-          .center([120.982025, 23.973875]) // 使用台灣地理中心作為圓心
+          .center([centerLng, centerLat]) // 使用當前地圖中心作為圓心
           .radius(angle); // 以弧度為半徑
 
-        // 繪製5000km圓圈 - 使用 append 確保畫在最上面
+        // 繪製5000km圓圈 - 使用 append 並 raise() 確保畫在最上面
         g.append('path')
           .datum(circle())
           .attr('d', path)
           .attr('fill', 'none')
           .attr('stroke', '#cccccc') // 淺灰色
-          .attr('stroke-width', 1)
-          .attr('stroke-dasharray', '5,5') // 淺虛線
+          .attr('stroke-width', 2) // 增加線寬使其更明顯
+          .attr('stroke-dasharray', '8,4') // 淺虛線（更明顯的虛線樣式）
           .attr('class', 'distance-circle')
-          .style('opacity', 0.8)
-          .style('pointer-events', 'none'); // 不影響其他互動
+          .style('opacity', 0.9) // 提高透明度使其更明顯
+          .style('pointer-events', 'none') // 不影響其他互動
+          .raise(); // 明確將元素提升到最上層
 
-        console.log('[MapTab] 5000km距離圓圈繪製完成');
+        console.log('[MapTab] 5000km距離圓圈繪製完成（已提升到最上層）');
       };
 
       /**
@@ -227,6 +235,9 @@
             .attr('stroke-width', 0.5)
             .attr('class', 'country');
 
+          // 繪製距離圓圈 - 在地圖繪製完成後立即繪製
+          drawDistanceCircles();
+
           console.log('[MapTab] 世界地圖繪製完成，已繪製', countries.features?.length, '個國家');
         } catch (error) {
           console.error('[MapTab] 世界地圖繪製失敗:', error);
@@ -239,42 +250,11 @@
       const addCityMarkers = () => {
         if (!g) return;
 
-        const cities = dataStore.getAllLayers();
-
         // 移除舊的標記
         g.selectAll('.city-marker').remove();
         g.selectAll('.city-label').remove();
 
-        // 添加新的標記
-        cities.forEach((city) => {
-          const [lng, lat] = city.center;
-          const [x, y] = projection([lng, lat]);
-
-          // 添加圓點標記
-          g.append('circle')
-            .attr('class', 'city-marker')
-            .attr('cx', x)
-            .attr('cy', y)
-            .attr('r', 4)
-            .attr('fill', '#ff0000')
-            .attr('stroke', '#ffffff')
-            .attr('stroke-width', 2)
-            .style('cursor', 'pointer');
-
-          // 添加城市名稱標籤
-          g.append('text')
-            .attr('class', 'city-label')
-            .attr('x', x)
-            .attr('y', y - 10)
-            .attr('text-anchor', 'middle')
-            .attr('font-size', '12px')
-            .attr('font-weight', 'bold')
-            .attr('fill', '#333333')
-            .attr('stroke', '#ffffff')
-            .attr('stroke-width', 3)
-            .attr('paint-order', 'stroke')
-            .text(city.layerName);
-        });
+        // 移除所有標記 - 不顯示圓點和文字
 
         // 繪製距離圓圈（每5000km一個）- 在所有元素之後繪製，確保在最上層
         drawDistanceCircles();
@@ -302,7 +282,10 @@
         // 更新所有路徑
         g.selectAll('path.country').attr('d', path);
 
-        // 更新城市標記（會自動繪製距離圓圈）
+        // 重新繪製距離圓圈（以新的中心為圓心）
+        drawDistanceCircles();
+
+        // 更新城市標記
         addCityMarkers();
 
         console.log('[MapTab] 地圖導航完成，中心:', center);
@@ -326,7 +309,10 @@
         // 更新所有路徑
         g.selectAll('path.country').attr('d', path);
 
-        // 更新城市標記（會自動繪製距離圓圈在最上層）
+        // 重新繪製距離圓圈
+        drawDistanceCircles();
+
+        // 更新城市標記
         addCityMarkers();
 
         console.log('[MapTab] 地圖尺寸更新完成');
@@ -467,13 +453,7 @@
     <!-- 🗺️ D3.js 地圖容器 -->
     <div :id="mapContainerId" ref="mapContainer" class="h-100 w-100"></div>
 
-    <!-- 中心點顯示 -->
-    <div
-      class="position-absolute top-50 start-50 translate-middle"
-      style="z-index: 1000; pointer-events: none"
-    >
-      <div class="rounded-circle bg-white" style="width: 4px; height: 4px"></div>
-    </div>
+    <!-- 移除中心點顯示 -->
   </div>
 </template>
 
