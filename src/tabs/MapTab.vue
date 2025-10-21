@@ -174,8 +174,7 @@
           .attr('d', path)
           .attr('fill', 'none')
           .attr('stroke', '#cccccc')
-          .attr('stroke-width', 1)
-          .attr('stroke-dasharray', '6,6');
+          .attr('stroke-width', 1);
       };
 
       /**
