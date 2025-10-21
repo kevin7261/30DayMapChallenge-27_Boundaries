@@ -173,13 +173,10 @@
       /**
        * 🔵 繪製以投影中心為圓心的同心距離圓
        * 每 5000 公里一圈，淺灰虛線，永遠位於地圖上層
+       * 最多繪製到 15000 公里（3 圈）
        */
       const drawDistanceRings = () => {
         if (!svg || !projection || !mapContainer.value) return;
-
-        const rect = mapContainer.value.getBoundingClientRect();
-        const width = rect.width;
-        const height = rect.height;
 
         const [cx, cy] = projection.translate();
         const scale = projection.scale();
@@ -187,15 +184,14 @@
         // 以公尺為單位的地球半徑與步長（5000 公里）
         const earthRadiusMeters = 6371008.8;
         const stepMeters = 5000000; // 5000 km
-
-        // 最大可見半徑（覆蓋到畫面角落即可）
-        const maxRadiusPx = Math.hypot(width / 2, height / 2);
+        const maxDistanceMeters = 15000000; // 15000 km
 
         // 計算需要的圈數與對應像素半徑（r = scale * (distance / R)）
         const rings = [];
-        for (let i = 1; ; i++) {
-          const radiusPx = scale * ((stepMeters * i) / earthRadiusMeters);
-          if (radiusPx > maxRadiusPx) break;
+        for (let i = 1; i <= 3; i++) {
+          const distanceMeters = stepMeters * i;
+          if (distanceMeters > maxDistanceMeters) break;
+          const radiusPx = scale * (distanceMeters / earthRadiusMeters);
           rings.push({ index: i, radiusPx });
         }
 
