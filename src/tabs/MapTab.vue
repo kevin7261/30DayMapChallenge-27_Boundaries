@@ -40,6 +40,7 @@
       let path = null;
       let zoom = null;
       let g = null;
+      let ringsGroup = null;
 
       // 🎛️ 地圖控制狀態
       const isMapReady = ref(false);
@@ -169,7 +170,63 @@
         }
       };
 
-      // 距離圓圈功能已移除
+      /**
+       * 🔵 繪製以投影中心為圓心的同心距離圓
+       * 每 5000 公里一圈，淺灰虛線，永遠位於地圖上層
+       */
+      const drawDistanceRings = () => {
+        if (!svg || !projection || !mapContainer.value) return;
+
+        const rect = mapContainer.value.getBoundingClientRect();
+        const width = rect.width;
+        const height = rect.height;
+
+        const [cx, cy] = projection.translate();
+        const scale = projection.scale();
+
+        // 以公尺為單位的地球半徑與步長（5000 公里）
+        const earthRadiusMeters = 6371008.8;
+        const stepMeters = 5000000; // 5000 km
+
+        // 最大可見半徑（覆蓋到畫面角落即可）
+        const maxRadiusPx = Math.hypot(width / 2, height / 2);
+
+        // 計算需要的圈數與對應像素半徑（r = scale * (distance / R)）
+        const rings = [];
+        for (let i = 1; ; i++) {
+          const radiusPx = scale * ((stepMeters * i) / earthRadiusMeters);
+          if (radiusPx > maxRadiusPx) break;
+          rings.push({ index: i, radiusPx });
+        }
+
+        if (!ringsGroup) {
+          ringsGroup = svg
+            .append('g')
+            .attr('class', 'rings-overlay')
+            .style('pointer-events', 'none');
+        }
+
+        // 確保在最上層
+        ringsGroup.raise();
+
+        // 資料繫結與繪製
+        const selection = ringsGroup.selectAll('circle.ring').data(rings, (d) => d.index);
+
+        selection
+          .enter()
+          .append('circle')
+          .attr('class', 'ring')
+          .attr('fill', 'none')
+          .attr('stroke', '#cccccc')
+          .attr('stroke-width', 1)
+          .attr('stroke-dasharray', '6,6')
+          .merge(selection)
+          .attr('cx', cx)
+          .attr('cy', cy)
+          .attr('r', (d) => d.radiusPx);
+
+        selection.exit().remove();
+      };
 
       /**
        * 🎨 繪製世界地圖
@@ -232,7 +289,8 @@
         // 更新所有路徑
         g.selectAll('path.country').attr('d', path);
 
-        // 距離圓圈功能已移除
+        // 重新繪製距離圓
+        drawDistanceRings();
 
         console.log('[MapTab] 地圖導航完成，中心:', center);
       };
@@ -261,7 +319,8 @@
         // 更新所有路徑
         g.selectAll('path.country').attr('d', path);
 
-        // 距離圓圈功能已移除
+        // 重新繪製距離圓
+        drawDistanceRings();
 
         console.log('[MapTab] 地圖尺寸更新完成');
       };
@@ -293,7 +352,8 @@
           if (createMap()) {
             console.log('[MapTab] 地圖創建成功，開始繪製世界地圖');
             await drawWorldMap();
-            // 距離圓圈功能已移除
+            // 繪製距離圓（置於最上層）
+            drawDistanceRings();
           } else {
             console.log('[MapTab] 地圖創建失敗，100ms 後重試');
             setTimeout(tryCreateMap, 100);
