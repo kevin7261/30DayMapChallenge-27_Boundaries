@@ -48,6 +48,8 @@
       // 世界地圖數據
       const worldData = ref(null);
 
+      // 圓圈現在使用 D3.js 繪製，不需要大小計算函數
+
       // 📊 計算屬性：檢查是否有任何圖層可見
       const isAnyLayerVisible = computed(() => dataStore.getAllLayers().length > 0);
 
@@ -120,10 +122,16 @@
 
           // 創建投影 - 使用方位等距投影 (Azimuthal Equidistant Projection)
           // 預設以台灣地理中心為投影中心
+          // 添加32px padding，確保地圖不會貼邊
+          const padding = 32;
+          const availableWidth = width - padding * 2;
+          const availableHeight = height - padding * 2;
+          const scale = Math.min(availableWidth, availableHeight) / 6;
+
           projection = d3
             .geoAzimuthalEquidistant()
             .rotate([-120.982025, -23.973875]) // 以台灣地理中心為中心
-            .scale(Math.min(width, height) / 7)
+            .scale(scale) // 使用計算後的縮放比例
             .translate([width / 2, height / 2])
             .clipAngle(180);
 
@@ -161,54 +169,7 @@
         }
       };
 
-      /**
-       * 🎯 繪製距離圓圈
-       * 從圓心開始，地球距離5000km畫一個淺灰虛線，畫在最上面
-       */
-      const drawDistanceCircles = () => {
-        if (!g || !projection) return;
-
-        // 地球半徑約6371km
-        const earthRadius = 6371; // km
-        const targetDistance = 5000; // km - 固定只畫5000km的圓圈
-
-        // 移除舊的距離圓圈
-        g.selectAll('.distance-circle').remove();
-
-        console.log('[MapTab] 開始繪製5000km距離圓圈');
-
-        // 將距離轉換為角度（弧度）
-        // 在地球上，距離 = 角度 * 地球半徑
-        const angle = targetDistance / earthRadius;
-
-        // 獲取當前投影的旋轉中心（即地圖中心）
-        const rotation = projection.rotate();
-        const centerLng = -rotation[0]; // 經度
-        const centerLat = -rotation[1]; // 緯度
-
-        console.log('[MapTab] 當前地圖中心:', [centerLng, centerLat]);
-
-        // 創建圓圈路徑
-        const circle = d3
-          .geoCircle()
-          .center([centerLng, centerLat]) // 使用當前地圖中心作為圓心
-          .radius(angle); // 以弧度為半徑
-
-        // 繪製5000km圓圈 - 使用 append 並 raise() 確保畫在最上面
-        g.append('path')
-          .datum(circle())
-          .attr('d', path)
-          .attr('fill', 'none')
-          .attr('stroke', '#cccccc') // 淺灰色
-          .attr('stroke-width', 2) // 增加線寬使其更明顯
-          .attr('stroke-dasharray', '8,4') // 淺虛線（更明顯的虛線樣式）
-          .attr('class', 'distance-circle')
-          .style('opacity', 0.9) // 提高透明度使其更明顯
-          .style('pointer-events', 'none') // 不影響其他互動
-          .raise(); // 明確將元素提升到最上層
-
-        console.log('[MapTab] 5000km距離圓圈繪製完成（已提升到最上層）');
-      };
+      // 距離圓圈功能已移除
 
       /**
        * 🎨 繪製世界地圖
@@ -235,8 +196,7 @@
             .attr('stroke-width', 0.5)
             .attr('class', 'country');
 
-          // 繪製距離圓圈 - 在地圖繪製完成後立即繪製
-          drawDistanceCircles();
+          // 距離圓圈功能已移除
 
           console.log('[MapTab] 世界地圖繪製完成，已繪製', countries.features?.length, '個國家');
         } catch (error) {
@@ -244,23 +204,7 @@
         }
       };
 
-      /**
-       * 🎯 添加城市標記
-       */
-      const addCityMarkers = () => {
-        if (!g) return;
-
-        // 移除舊的標記
-        g.selectAll('.city-marker').remove();
-        g.selectAll('.city-label').remove();
-
-        // 移除所有標記 - 不顯示圓點和文字
-
-        // 繪製距離圓圈（每5000km一個）- 在所有元素之後繪製，確保在最上層
-        drawDistanceCircles();
-
-        console.log('[MapTab] 城市標記添加完成');
-      };
+      // addCityMarkers 函數已移除 - 不再需要城市標記
 
       /**
        * 🌍 導航到指定位置
@@ -277,16 +221,18 @@
         // 方位等距投影：使用 rotate 將選定位置旋轉到中心
         // rotate 接受 [lambda, phi, gamma]，其中 lambda 和 phi 是經緯度的負值
         // 地球大小保持固定，不隨導航改變
-        projection.rotate([-center[0], -center[1]]).scale(Math.min(width, height) / 7);
+        // 添加32px padding，確保地圖不會貼邊
+        const padding = 32;
+        const availableWidth = width - padding * 2;
+        const availableHeight = height - padding * 2;
+        const scale = Math.min(availableWidth, availableHeight) / 6;
+
+        projection.rotate([-center[0], -center[1]]).scale(scale);
 
         // 更新所有路徑
         g.selectAll('path.country').attr('d', path);
 
-        // 重新繪製距離圓圈（以新的中心為圓心）
-        drawDistanceCircles();
-
-        // 更新城市標記
-        addCityMarkers();
+        // 距離圓圈功能已移除
 
         console.log('[MapTab] 地圖導航完成，中心:', center);
       };
@@ -304,16 +250,18 @@
 
         svg.attr('width', width).attr('height', height);
 
-        projection.translate([width / 2, height / 2]).scale(Math.min(width, height) / 7);
+        // 添加32px padding，確保地圖不會貼邊
+        const padding = 32;
+        const availableWidth = width - padding * 2;
+        const availableHeight = height - padding * 2;
+        const scale = Math.min(availableWidth, availableHeight) / 6;
+
+        projection.translate([width / 2, height / 2]).scale(scale);
 
         // 更新所有路徑
         g.selectAll('path.country').attr('d', path);
 
-        // 重新繪製距離圓圈
-        drawDistanceCircles();
-
-        // 更新城市標記
-        addCityMarkers();
+        // 距離圓圈功能已移除
 
         console.log('[MapTab] 地圖尺寸更新完成');
       };
@@ -345,7 +293,7 @@
           if (createMap()) {
             console.log('[MapTab] 地圖創建成功，開始繪製世界地圖');
             await drawWorldMap();
-            addCityMarkers();
+            // 距離圓圈功能已移除
           } else {
             console.log('[MapTab] 地圖創建失敗，100ms 後重試');
             setTimeout(tryCreateMap, 100);
@@ -412,7 +360,7 @@
         () => dataStore.layers,
         () => {
           if (isMapReady.value) {
-            addCityMarkers();
+            // 距離圓圈功能已移除
           }
         },
         { deep: true }
@@ -453,7 +401,7 @@
     <!-- 🗺️ D3.js 地圖容器 -->
     <div :id="mapContainerId" ref="mapContainer" class="h-100 w-100"></div>
 
-    <!-- 移除中心點顯示 -->
+    <!-- 距離圓圈現在使用 D3.js 繪製 -->
   </div>
 </template>
 
@@ -463,6 +411,8 @@
   #map-container {
     overflow: hidden;
   }
+
+  /* 距離圓圈現在使用 D3.js 繪製，不需要 CSS 樣式 */
 
   :deep(.country) {
     transition: fill 0.2s ease;
