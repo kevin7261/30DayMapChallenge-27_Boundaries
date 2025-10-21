@@ -10,14 +10,14 @@
  * 3. 🗺️ 路由系統配置 - Vue Router 4 單頁應用程式導航管理
  * 4. 📦 狀態管理系統 - Pinia 全域狀態管理和數據持久化
  * 5. 🌍 DOM 掛載與渲染 - 將應用程式掛載到 HTML 容器中
- * 6. 🔧 第三方庫整合 - Leaflet 地圖、Font Awesome 圖示、Bootstrap 組件
+ * 6. 🔧 第三方庫整合 - D3.js 地圖、Font Awesome 圖示、Bootstrap 組件
  *
  * 🏗️ 技術架構：
  * - Vue 3.3+ (Composition API + <script setup> 語法)
  * - Vue Router 4 (聲明式路由配置)
  * - Pinia 2+ (輕量級狀態管理，替代 Vuex)
  * - Bootstrap 5.3+ (響應式 UI 框架)
- * - Leaflet 1.9+ (開源地圖庫)
+ * - D3.js 7+ (數據可視化和地圖繪製庫)
  * - Font Awesome 6+ (向量圖示庫)
  *
  * 🔄 初始化流程：
@@ -45,7 +45,6 @@ import router from './router';
 
 // 🎨 引入第三方樣式文件 (Import Third-Party Style Files)
 import 'bootstrap/dist/css/bootstrap.min.css'; // Bootstrap 5 CSS 框架
-import 'leaflet/dist/leaflet.css'; // Leaflet 地圖核心樣式
 import '@fortawesome/fontawesome-free/css/all.min.css'; // Font Awesome 圖示庫
 
 // 🎨 引入自定義樣式文件 (Import Custom Style Files)
@@ -79,5 +78,5 @@ console.log('🚀 空間分析視覺化平台已啟動');
 console.log('📦 Pinia 狀態管理已初始化');
 console.log('🗺️ Vue Router 路由系統已就緒');
 console.log('🎨 Bootstrap 5 UI 框架已載入');
-console.log('🗺️ Leaflet 地圖庫已準備就緒');
+console.log('🗺️ D3.js 地圖庫已準備就緒');
 console.log('🔤 Font Awesome 圖示庫已載入');

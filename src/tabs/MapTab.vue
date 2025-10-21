@@ -1,24 +1,23 @@
 <script>
   /**
-   * 🗺️ MapTab.vue - 簡化版地圖組件 (Simplified Map Component)
+   * 🗺️ MapTab.vue - D3.js 世界地圖組件 (D3.js World Map Component)
    *
-   * 這是一個簡化的地圖組件，專為世界城市地圖展示設計。
+   * 使用 D3.js 繪製世界地圖，專為世界城市地圖展示設計。
    * 主要功能：
-   * - 顯示世界六大城市的 GeoJSON 數據
+   * - 使用 D3.js 顯示世界地圖
    * - 提供城市導航功能
-   * - 支援多種底圖切換
+   * - 支援多種投影方式
    * - 響應式設計
    *
    * 技術架構：
    * - Vue 3 Composition API
-   * - Leaflet 地圖庫
+   * - D3.js 地圖繪製
    * - Pinia 狀態管理
    * - Bootstrap 5 樣式
    */
 
   import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue';
-  import L from 'leaflet';
-  import 'leaflet/dist/leaflet.css';
+  import * as d3 from 'd3';
   import { useDataStore } from '@/stores/dataStore.js';
   import { useDefineStore } from '@/stores/defineStore.js';
 
@@ -35,45 +34,66 @@
 
       // 🗺️ 地圖相關變數
       const mapContainer = ref(null);
-      let mapInstance = null;
-      let currentTileLayer = null;
+      const svgElement = ref(null);
+      let svg = null;
+      let projection = null;
+      let path = null;
+      let zoom = null;
+      let g = null;
 
       // 🎛️ 地圖控制狀態
       const isMapReady = ref(false);
-      const mapContainerId = ref(`leaflet-map-${Math.random().toString(36).substr(2, 9)}`);
+      const mapContainerId = ref(`d3-map-${Math.random().toString(36).substr(2, 9)}`);
 
-      // 📊 計算屬性：檢查是否有任何圖層可見（現在所有圖層都直接可見）
+      // 世界地圖數據
+      const worldData = ref(null);
+
+      // 📊 計算屬性：檢查是否有任何圖層可見
       const isAnyLayerVisible = computed(() => dataStore.getAllLayers().length > 0);
 
       // 🏙️ 當前國家信息
       const currentCountryInfo = computed(() => {
         if (!props.currentCountry) {
-          console.log('❌ currentCountryInfo: 沒有當前國家');
           return null;
         }
 
-        // 從dataStore中獲取國家信息
         const allLayers = dataStore.getAllLayers();
-        console.log(
-          '🔍 查找國家:',
-          props.currentCountry,
-          '可用圖層:',
-          allLayers.map((l) => l.layerName)
-        );
-
         const countryLayer = allLayers.find((layer) => layer.layerName === props.currentCountry);
         if (countryLayer) {
-          console.log('✅ 找到國家圖層:', countryLayer.layerName);
           return {};
         } else {
-          console.log('❌ 未找到國家圖層:', props.currentCountry);
           return null;
         }
       });
 
       /**
+       * 📥 載入世界地圖數據
+       */
+      const loadWorldData = async () => {
+        try {
+          // 使用本地的 GeoJSON 檔案
+          console.log('[MapTab] 開始載入 GeoJSON 數據...');
+          const response = await fetch(
+            `${process.env.BASE_URL}data/ne_110m_admin_0_countries.geojson`
+          );
+
+          if (!response.ok) {
+            throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
+          }
+
+          const data = await response.json();
+          worldData.value = data;
+          console.log('[MapTab] 世界地圖數據載入成功，特徵數量:', data.features?.length);
+          return true;
+        } catch (error) {
+          console.error('[MapTab] 世界地圖數據載入失敗:', error);
+          return false;
+        }
+      };
+
+      /**
        * 🏗️ 創建地圖實例
-       * 初始化 Leaflet 地圖並設定基本配置
+       * 初始化 D3 地圖並設定基本配置
        */
       const createMap = () => {
         if (!mapContainer.value) return false;
@@ -85,123 +105,207 @@
         }
 
         try {
-          mapInstance = L.map(mapContainer.value, {
-            center: defineStore.mapView.center,
-            zoom: defineStore.mapView.zoom,
-            zoomControl: false,
-            attributionControl: false,
-            dragging: false, // 禁用拖拽
-            touchZoom: false, // 禁用觸控縮放
-            doubleClickZoom: false, // 禁用雙擊縮放
-            scrollWheelZoom: false, // 禁用滾輪縮放
-            boxZoom: false, // 禁用框選縮放
-            keyboard: false, // 禁用鍵盤控制
-          });
+          const width = rect.width;
+          const height = rect.height;
 
-          // 綁定地圖事件
-          mapInstance.on('zoomend', handleZoomEnd);
-          mapInstance.on('moveend', handleMoveEnd);
+          // 創建 SVG 元素
+          svg = d3
+            .select(mapContainer.value)
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height)
+            .style('background', '#f0f0f0');
 
-          // 移除地圖點擊事件處理
+          svgElement.value = svg.node();
 
-          // 設定 popup 面板的 z-index
-          mapInstance.getPane('popupPane').style.zIndex = 2200;
+          // 創建投影 - 使用方位等距投影 (Azimuthal Equidistant Projection)
+          // 預設以台灣地理中心為投影中心
+          projection = d3
+            .geoAzimuthalEquidistant()
+            .rotate([-120.982025, -23.973875]) // 以台灣地理中心為中心
+            .scale(Math.min(width, height) / 7)
+            .translate([width / 2, height / 2])
+            .clipAngle(180);
+
+          // 創建路徑生成器
+          path = d3.geoPath().projection(projection);
+
+          // 創建容器組
+          g = svg.append('g');
+
+          // 設置縮放行為（禁用所有互動）
+          zoom = d3
+            .zoom()
+            .scaleExtent([1, 1]) // 禁用縮放
+            .on('zoom', null); // 禁用縮放事件
+
+          svg.call(zoom).on('wheel.zoom', null).on('dblclick.zoom', null);
 
           isMapReady.value = true;
-          emit('map-ready', mapInstance);
 
-          console.log('[MapTab] 地圖創建成功');
+          // 將地圖實例和方法一起傳遞
+          const mapInterface = {
+            svg,
+            projection,
+            path,
+            navigateToLocation: (center) => navigateToLocation(center),
+          };
+
+          emit('map-ready', mapInterface);
+
+          console.log('[MapTab] D3 地圖創建成功');
           return true;
         } catch (error) {
-          console.error('[MapTab] 地圖創建失敗:', error);
+          console.error('[MapTab] D3 地圖創建失敗:', error);
           return false;
         }
       };
 
       /**
-       * 📡 處理縮放結束事件
-       * 更新地圖視圖狀態到存儲中
+       * 🎯 繪製距離圓圈
+       * 從圓心開始，地球距離5000km畫一個淺灰虛線，畫在最上面
        */
-      const handleZoomEnd = () => {
-        if (mapInstance) {
-          const zoom = mapInstance.getZoom();
-          const center = mapInstance.getCenter();
-          defineStore.setMapView([center.lat, center.lng], zoom);
-          emit('update:zoomLevel', zoom);
+      const drawDistanceCircles = () => {
+        if (!g || !projection) return;
+
+        // 地球半徑約6371km
+        const earthRadius = 6371; // km
+        const targetDistance = 5000; // km - 固定只畫5000km的圓圈
+
+        // 移除舊的距離圓圈
+        g.selectAll('.distance-circle').remove();
+
+        console.log('[MapTab] 開始繪製5000km距離圓圈');
+
+        // 將距離轉換為角度（弧度）
+        // 在地球上，距離 = 角度 * 地球半徑
+        const angle = targetDistance / earthRadius;
+
+        // 創建圓圈路徑
+        const circle = d3
+          .geoCircle()
+          .center([120.982025, 23.973875]) // 使用台灣地理中心作為圓心
+          .radius(angle); // 以弧度為半徑
+
+        // 繪製5000km圓圈 - 使用 append 確保畫在最上面
+        g.append('path')
+          .datum(circle())
+          .attr('d', path)
+          .attr('fill', 'none')
+          .attr('stroke', '#cccccc') // 淺灰色
+          .attr('stroke-width', 1)
+          .attr('stroke-dasharray', '5,5') // 淺虛線
+          .attr('class', 'distance-circle')
+          .style('opacity', 0.8)
+          .style('pointer-events', 'none'); // 不影響其他互動
+
+        console.log('[MapTab] 5000km距離圓圈繪製完成');
+      };
+
+      /**
+       * 🎨 繪製世界地圖
+       */
+      const drawWorldMap = async () => {
+        if (!g || !worldData.value) {
+          console.error('[MapTab] 無法繪製地圖: g=', !!g, 'worldData=', !!worldData.value);
+          return;
+        }
+
+        try {
+          // 直接使用 GeoJSON 數據（無需轉換）
+          const countries = worldData.value;
+          console.log('[MapTab] 開始繪製地圖，國家數量:', countries.features?.length);
+
+          // 繪製國家邊界
+          g.selectAll('path')
+            .data(countries.features)
+            .enter()
+            .append('path')
+            .attr('d', path)
+            .attr('fill', '#d0d0d0')
+            .attr('stroke', '#666666')
+            .attr('stroke-width', 0.5)
+            .attr('class', 'country');
+
+          console.log('[MapTab] 世界地圖繪製完成，已繪製', countries.features?.length, '個國家');
+        } catch (error) {
+          console.error('[MapTab] 世界地圖繪製失敗:', error);
         }
       };
 
       /**
-       * 📡 處理移動結束事件
-       * 更新地圖中心座標
+       * 🎯 添加城市標記
        */
-      const handleMoveEnd = () => {
-        if (mapInstance) {
-          const center = mapInstance.getCenter();
-          defineStore.setMapView([center.lat, center.lng], mapInstance.getZoom());
-          emit('update:currentCoords', { lat: center.lat, lng: center.lng });
-        }
+      const addCityMarkers = () => {
+        if (!g) return;
+
+        const cities = dataStore.getAllLayers();
+
+        // 移除舊的標記
+        g.selectAll('.city-marker').remove();
+        g.selectAll('.city-label').remove();
+
+        // 添加新的標記
+        cities.forEach((city) => {
+          const [lng, lat] = city.center;
+          const [x, y] = projection([lng, lat]);
+
+          // 添加圓點標記
+          g.append('circle')
+            .attr('class', 'city-marker')
+            .attr('cx', x)
+            .attr('cy', y)
+            .attr('r', 4)
+            .attr('fill', '#ff0000')
+            .attr('stroke', '#ffffff')
+            .attr('stroke-width', 2)
+            .style('cursor', 'pointer');
+
+          // 添加城市名稱標籤
+          g.append('text')
+            .attr('class', 'city-label')
+            .attr('x', x)
+            .attr('y', y - 10)
+            .attr('text-anchor', 'middle')
+            .attr('font-size', '12px')
+            .attr('font-weight', 'bold')
+            .attr('fill', '#333333')
+            .attr('stroke', '#ffffff')
+            .attr('stroke-width', 3)
+            .attr('paint-order', 'stroke')
+            .text(city.layerName);
+        });
+
+        // 繪製距離圓圈（每5000km一個）- 在所有元素之後繪製，確保在最上層
+        drawDistanceCircles();
+
+        console.log('[MapTab] 城市標記添加完成');
       };
 
       /**
-       * 🎨 設定底圖
-       * 根據存儲中的設定載入對應的底圖圖層
+       * 🌍 導航到指定位置
+       * 使用方位等距投影，將選定的國家設為地圖中心
+       * 地球大小保持不變，只改變旋轉中心
        */
-      const setBasemap = () => {
-        if (!mapInstance) return;
+      const navigateToLocation = (center) => {
+        if (!svg || !projection) return;
 
-        // 移除現有底圖
-        if (currentTileLayer) {
-          mapInstance.removeLayer(currentTileLayer);
-        }
+        const rect = mapContainer.value.getBoundingClientRect();
+        const width = rect.width;
+        const height = rect.height;
 
-        const config = defineStore.basemaps.find((b) => b.value === defineStore.selectedBasemap);
+        // 方位等距投影：使用 rotate 將選定位置旋轉到中心
+        // rotate 接受 [lambda, phi, gamma]，其中 lambda 和 phi 是經緯度的負值
+        // 地球大小保持固定，不隨導航改變
+        projection.rotate([-center[0], -center[1]]).scale(Math.min(width, height) / 7);
 
-        // 添加標準底圖圖層
-        if (config && config.url) {
-          currentTileLayer = L.tileLayer(config.url, {
-            attribution: '© OpenStreetMap contributors',
-            maxZoom: 18,
-          });
-          mapInstance.addLayer(currentTileLayer);
-        }
+        // 更新所有路徑
+        g.selectAll('path.country').attr('d', path);
 
-        // 使用預設的透明背景，不設定任何特殊背景色
-      };
+        // 更新城市標記（會自動繪製距離圓圈）
+        addCityMarkers();
 
-      // 移除地圖標記功能，改為在 HTML 上顯示中心點
-
-      /**
-       * 🎯 高亮顯示特定要素
-       * 當用戶點擊地圖要素時高亮顯示
-       */
-      const highlightFeature = (feature) => {
-        // 重置所有圖層樣式
-        resetAllLayerStyles();
-
-        // 高亮選中的要素
-        if (feature && feature._leaflet_id) {
-          // 這裡可以添加高亮邏輯
-          console.log('高亮要素:', feature.properties.name);
-        }
-      };
-
-      /**
-       * 🔄 重置所有圖層樣式
-       * 清除所有高亮效果
-       */
-      const resetAllLayerStyles = () => {
-        // 這裡可以添加重置樣式的邏輯
-        console.log('重置圖層樣式');
-      };
-
-      /**
-       * 🔄 同步圖層（已移除標記功能）
-       * 不再在地圖上創建標記，改為在 HTML 上顯示
-       */
-      const syncLayers = () => {
-        // 移除地圖標記功能，不需要同步任何圖層
-        console.log('圖層同步已禁用，使用 HTML 中心點顯示');
+        console.log('[MapTab] 地圖導航完成，中心:', center);
       };
 
       /**
@@ -209,22 +313,41 @@
        * 當容器大小改變時重新計算地圖尺寸
        */
       const invalidateSize = () => {
-        if (mapInstance) {
-          setTimeout(() => {
-            mapInstance.invalidateSize();
-          }, 100);
-        }
+        if (!svg || !mapContainer.value) return;
+
+        const rect = mapContainer.value.getBoundingClientRect();
+        const width = rect.width;
+        const height = rect.height;
+
+        svg.attr('width', width).attr('height', height);
+
+        projection.translate([width / 2, height / 2]).scale(Math.min(width, height) / 7);
+
+        // 更新所有路徑
+        g.selectAll('path.country').attr('d', path);
+
+        // 更新城市標記（會自動繪製距離圓圈在最上層）
+        addCityMarkers();
+
+        console.log('[MapTab] 地圖尺寸更新完成');
       };
 
       /**
        * 🚀 初始化地圖
        * 創建地圖並載入初始數據
        */
-      const initMap = () => {
+      const initMap = async () => {
         let attempts = 0;
         const maxAttempts = 20;
 
-        const tryCreateMap = () => {
+        // 先載入世界地圖數據
+        const loaded = await loadWorldData();
+        if (!loaded) {
+          console.error('[MapTab] 無法載入世界地圖數據');
+          return;
+        }
+
+        const tryCreateMap = async () => {
           if (attempts >= maxAttempts) {
             console.error('[MapTab] 地圖初始化失敗，已達到最大嘗試次數');
             return;
@@ -234,9 +357,9 @@
           console.log(`[MapTab] 嘗試創建地圖 (${attempts}/${maxAttempts})`);
 
           if (createMap()) {
-            console.log('[MapTab] 地圖創建成功，開始初始化');
-            setBasemap();
-            syncLayers();
+            console.log('[MapTab] 地圖創建成功，開始繪製世界地圖');
+            await drawWorldMap();
+            addCityMarkers();
           } else {
             console.log('[MapTab] 地圖創建失敗，100ms 後重試');
             setTimeout(tryCreateMap, 100);
@@ -286,24 +409,40 @@
           resizeObserver.disconnect();
         }
 
-        if (mapInstance) {
-          mapInstance.remove();
-          mapInstance = null;
+        if (svg) {
+          svg.remove();
+          svg = null;
         }
 
-        currentTileLayer = null;
+        projection = null;
+        path = null;
+        zoom = null;
+        g = null;
         isMapReady.value = false;
       });
 
       // 👀 監聽器：監聽資料存儲中的圖層變化
-      watch(() => dataStore.layers, syncLayers, { deep: true });
-
-      // 👀 監聽器：監聽底圖變化
       watch(
-        () => defineStore.selectedBasemap,
+        () => dataStore.layers,
         () => {
           if (isMapReady.value) {
-            setBasemap();
+            addCityMarkers();
+          }
+        },
+        { deep: true }
+      );
+
+      // 👀 監聽器：監聽當前國家變化
+      watch(
+        () => props.currentCountry,
+        (newCountry) => {
+          if (isMapReady.value && newCountry) {
+            // currentCountry 是 layerName，需要找到對應的圖層
+            const allLayers = dataStore.getAllLayers();
+            const layer = allLayers.find((l) => l.layerName === newCountry);
+            if (layer) {
+              navigateToLocation(layer.center);
+            }
           }
         }
       );
@@ -314,9 +453,9 @@
         mapContainerId,
         isAnyLayerVisible,
         currentCountryInfo,
-        highlightFeature,
         invalidateSize,
         defineStore,
+        navigateToLocation,
       };
     },
   };
@@ -325,7 +464,7 @@
 <template>
   <!-- 🗺️ 地圖主容器 -->
   <div id="map-container" class="h-100 w-100 position-relative bg-transparent z-0">
-    <!-- 🗺️ Leaflet 地圖容器 -->
+    <!-- 🗺️ D3.js 地圖容器 -->
     <div :id="mapContainerId" ref="mapContainer" class="h-100 w-100"></div>
 
     <!-- 中心點顯示 -->
@@ -338,6 +477,26 @@
   </div>
 </template>
 
-<style>
+<style scoped>
   @import '../assets/css/common.css';
+
+  #map-container {
+    overflow: hidden;
+  }
+
+  :deep(.country) {
+    transition: fill 0.2s ease;
+  }
+
+  :deep(.country:hover) {
+    fill: #c0c0c0;
+  }
+
+  :deep(.city-marker) {
+    transition: r 0.2s ease;
+  }
+
+  :deep(.city-marker:hover) {
+    r: 6;
+  }
 </style>

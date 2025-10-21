@@ -51,7 +51,7 @@ export const useDataStore = defineStore(
             // 🏝️ 台灣國家配置
             layerId: 'Taiwan', // 圖層唯一標識符
             layerName: 'TAIWAN', // 圖層顯示名稱
-            center: [121.519639, 25.045694], // 台灣中心座標 [經度, 緯度]
+            center: [120.982025, 23.973875], // 台灣地理中心 [經度, 緯度] 120°58′55.2886″E 23°58′25.9486″N
           },
           {
             // 🏛️ 中國國家配置
@@ -202,15 +202,17 @@ export const useDataStore = defineStore(
         return;
       }
 
-      // 使用國家中心座標
-      const [lng, lat] = countryLayer.center;
-      const targetCenter = [lat, lng]; // Leaflet 需要 [lat, lng] 格式
+      // 使用國家中心座標 (D3.js 使用 [lng, lat] 格式)
+      const center = countryLayer.center;
       const optimalZoom = COUNTRY_ZOOM_LEVEL; // 使用固定的縮放級別
 
       // 執行地圖導航
       try {
-        mapInstance.value.setView(targetCenter, optimalZoom, { animate: false });
-        console.log(`🌍 成功導航到國家: ${countryLayer.layerName}`);
+        // D3.js 地圖使用 navigateToLocation 方法
+        if (mapInstance.value.navigateToLocation) {
+          mapInstance.value.navigateToLocation(center, optimalZoom);
+          console.log(`🌍 成功導航到國家: ${countryLayer.layerName}`);
+        }
       } catch (error) {
         console.error('❌ 地圖導航失敗:', error);
       }

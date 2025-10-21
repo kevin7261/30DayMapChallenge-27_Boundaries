@@ -29,8 +29,8 @@
 
       /**
        * 🗺️ 設定地圖實例
-       * 將 Leaflet 地圖實例傳遞給 dataStore 以便城市導航使用
-       * @param {Object} map - Leaflet 地圖實例
+       * 將 D3.js 地圖實例傳遞給 dataStore 以便城市導航使用
+       * @param {Object} map - D3.js 地圖實例（包含 svg, projection, path）
        */
       const setMapInstance = (map) => dataStore.setMapInstance(map);
 
