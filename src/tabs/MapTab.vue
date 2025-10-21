@@ -17,18 +17,15 @@
    * - Bootstrap 5 樣式
    */
 
-  import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue';
+  import { ref, onMounted, onUnmounted, nextTick } from 'vue';
   import * as d3 from 'd3';
   import { useDataStore } from '@/stores/dataStore.js';
   import { useDefineStore } from '@/stores/defineStore.js';
 
   export default {
     name: 'MapTab',
-    props: {
-      currentCountry: { type: String, default: '國家名稱' },
-    },
     emits: ['map-ready'],
-    setup(props, { emit }) {
+    setup(_, { emit }) {
       // 📦 存儲實例
       const dataStore = useDataStore();
       const defineStore = useDefineStore();
@@ -50,25 +47,7 @@
       // 世界地圖數據
       const worldData = ref(null);
 
-      // 圓圈現在使用 D3.js 繪製，不需要大小計算函數
-
-      // 📊 計算屬性：檢查是否有任何圖層可見
-      const isAnyLayerVisible = computed(() => dataStore.getAllLayers().length > 0);
-
-      // 🏙️ 當前國家信息
-      const currentCountryInfo = computed(() => {
-        if (!props.currentCountry) {
-          return null;
-        }
-
-        const allLayers = dataStore.getAllLayers();
-        const countryLayer = allLayers.find((layer) => layer.layerName === props.currentCountry);
-        if (countryLayer) {
-          return {};
-        } else {
-          return null;
-        }
-      });
+      // 移除圖層和國家相關的計算屬性 - 改為全屏世界地圖顯示
 
       /**
        * 📥 載入世界地圖數據
@@ -100,7 +79,7 @@
        * 初始化 D3 地圖並設定基本配置
        */
       const createMap = () => {
-        if (!mapContainer.value) return false;
+        if (!mapContainer.value || !worldData.value) return false;
 
         const rect = mapContainer.value.getBoundingClientRect();
         if (rect.width === 0 || rect.height === 0) {
@@ -123,18 +102,11 @@
           svgElement.value = svg.node();
 
           // 創建投影 - 使用麥卡托投影 (Mercator Projection)
-          // 預設以台灣為地圖中心
-          // 添加32px padding，確保地圖不會貼邊
-          const padding = 32;
-          const availableWidth = width - padding * 2;
-          const availableHeight = height - padding * 2;
-          const scale = Math.min(availableWidth, availableHeight) / 6;
-
+          // 自動調整以顯示整個世界地圖
           projection = d3
             .geoMercator()
-            .center([120.982025, 23.973875]) // 以台灣地理中心為中心
-            .scale(scale) // 使用計算後的縮放比例
-            .translate([width / 2, height / 2]);
+            .center([0, 0]) // 以本初子午線和赤道交點為中心
+            .fitSize([width, height], worldData.value); // 自動縮放以適應容器
 
           // 創建路徑生成器
           path = d3.geoPath().projection(projection);
@@ -248,23 +220,18 @@
       // addCityMarkers 函數已移除 - 不再需要城市標記
 
       /**
-       * 🌍 導航到指定位置
+       * 🌍 導航到指定位置（目前不使用，保留介面）
        * 使用麥卡托投影，將選定的國家設為地圖中心
        */
       const navigateToLocation = (center) => {
-        if (!svg || !projection) return;
+        if (!svg || !projection || !worldData.value) return;
 
         const rect = mapContainer.value.getBoundingClientRect();
         const width = rect.width;
         const height = rect.height;
 
-        // 麥卡托投影：使用 center 方法設置中心點
-        // 添加32px padding，確保地圖不會貼邊
-        const padding = 32;
-        const availableWidth = width - padding * 2;
-        const availableHeight = height - padding * 2;
-        const scale = Math.min(availableWidth, availableHeight) / 6;
-
+        // 麥卡托投影：使用 center 方法設置中心點並調整縮放
+        const scale = Math.min(width, height) / 2;
         projection.center([center[0], center[1]]).scale(scale);
 
         // 更新所有路徑
@@ -281,7 +248,7 @@
        * 當容器大小改變時重新計算地圖尺寸
        */
       const invalidateSize = () => {
-        if (!svg || !mapContainer.value) return;
+        if (!svg || !mapContainer.value || !worldData.value) return;
 
         const rect = mapContainer.value.getBoundingClientRect();
         const width = rect.width;
@@ -289,13 +256,8 @@
 
         svg.attr('width', width).attr('height', height);
 
-        // 添加32px padding，確保地圖不會貼邊
-        const padding = 32;
-        const availableWidth = width - padding * 2;
-        const availableHeight = height - padding * 2;
-        const scale = Math.min(availableWidth, availableHeight) / 6;
-
-        projection.translate([width / 2, height / 2]).scale(scale);
+        // 自動調整投影以適應新的容器尺寸
+        projection.fitSize([width, height], worldData.value);
 
         // 更新所有路徑
         g.selectAll('path.country').attr('d', path);
@@ -396,38 +358,12 @@
         isMapReady.value = false;
       });
 
-      // 👀 監聽器：監聽資料存儲中的圖層變化
-      watch(
-        () => dataStore.layers,
-        () => {
-          if (isMapReady.value) {
-            // 圖層更新時無需額外操作
-          }
-        },
-        { deep: true }
-      );
-
-      // 👀 監聽器：監聽當前國家變化
-      watch(
-        () => props.currentCountry,
-        (newCountry) => {
-          if (isMapReady.value && newCountry) {
-            // currentCountry 是 layerName，需要找到對應的圖層
-            const allLayers = dataStore.getAllLayers();
-            const layer = allLayers.find((l) => l.layerName === newCountry);
-            if (layer) {
-              navigateToLocation(layer.center);
-            }
-          }
-        }
-      );
+      // 👀 監聽器已移除 - 不再需要動態導航功能
 
       // 📤 返回組件公開的屬性和方法
       return {
         mapContainer,
         mapContainerId,
-        isAnyLayerVisible,
-        currentCountryInfo,
         invalidateSize,
         defineStore,
         navigateToLocation,
