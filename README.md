@@ -1,4 +1,4 @@
-# 🌍 30DayMapChallenge-04_Data-challenge-My-Data - 世界國家地圖
+# 🌍 22_Data challenge-Natural Earth - 世界國家地圖
 
 一個基於 Vue 3 和 Leaflet 的互動式世界國家地圖應用程式，展示六大國家的座標點。
 
@@ -56,7 +56,7 @@
 ## 📁 專案結構
 
 ```
-30DayMapChallenge-04_Data-challenge-My-Data/
+22_Data-challenge-Natural-Earth/
 ├── public/
 │   └── index.html
 ├── src/
@@ -90,8 +90,8 @@
 1. **克隆專案**
 
    ```bash
-   git clone https://github.com/kevin7261/30DayMapChallenge-04_Data-challenge-My-Data.git
-   cd 30DayMapChallenge-04_Data-challenge-My-Data
+   git clone https://github.com/kevin7261/30DayMapChallenge-22_Data-challenge-Natural-Earth.git
+   cd 30DayMapChallenge-22_Data-challenge-Natural-Earth
    ```
 
 2. **安裝依賴**
@@ -119,8 +119,10 @@
 
 ### 開發服務器
 
-- 本地地址: `http://localhost:8080/30DayMapChallenge-04_Data-challenge-My-Data/`
-- 網路地址: `http://[your-ip]:8080/30DayMapChallenge-04_Data-challenge-My-Data/`
+- 本地地址:
+  `http://localhost:8080/30DayMapChallenge-22_Data-challenge-Natural-Earth/`
+- 網路地址:
+  `http://[your-ip]:8080/30DayMapChallenge-22_Data-challenge-Natural-Earth/`
 
 ## 📖 使用說明
 
@@ -246,7 +248,7 @@
 3. **訪問網站**
 
    ```
-   https://kevin7261.github.io/30DayMapChallenge-04_Data-challenge-My-Data/
+   https://kevin7261.github.io/30DayMapChallenge-22_Data-challenge-Natural-Earth/
    ```
 
 ### 環境變數
@@ -286,7 +288,7 @@ VUE_APP_API_URL=https://your-api-domain.com
 - 專案維護者: [Your Name]
 - 電子郵件: [your.email@example.com]
 - 專案連結:
-  [https://github.com/kevin7261/30DayMapChallenge-04_Data-challenge-My-Data](https://github.com/kevin7261/30DayMapChallenge-04_Data-challenge-My-Data)
+  [https://github.com/kevin7261/30DayMapChallenge-22_Data-challenge-Natural-Earth](https://github.com/kevin7261/30DayMapChallenge-22_Data-challenge-Natural-Earth)
 
 ## 🙏 致謝
 
@@ -297,4 +299,4 @@ VUE_APP_API_URL=https://your-api-domain.com
 
 ---
 
-**30DayMapChallenge-04_Data-challenge-My-Data** - 探索世界國家的點之美 🌍✨
+**22_Data challenge-Natural Earth** - 探索世界國家的點之美 🌍✨

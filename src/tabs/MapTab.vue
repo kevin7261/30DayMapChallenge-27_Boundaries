@@ -6,7 +6,8 @@
    * 主要功能：
    * - 使用 D3.js 顯示世界地圖
    * - 提供城市導航功能
-   * - 支援多種投影方式
+   * - 使用麥卡托投影 (Mercator Projection)
+   * - 顯示經緯度網格線
    * - 響應式設計
    *
    * 技術架構：
@@ -121,8 +122,8 @@
 
           svgElement.value = svg.node();
 
-          // 創建投影 - 使用方位等距投影 (Azimuthal Equidistant Projection)
-          // 預設以台灣地理中心為投影中心
+          // 創建投影 - 使用麥卡托投影 (Mercator Projection)
+          // 預設以台灣為地圖中心
           // 添加32px padding，確保地圖不會貼邊
           const padding = 32;
           const availableWidth = width - padding * 2;
@@ -130,11 +131,10 @@
           const scale = Math.min(availableWidth, availableHeight) / 6;
 
           projection = d3
-            .geoAzimuthalEquidistant()
-            .rotate([-120.982025, -23.973875]) // 以台灣地理中心為中心
+            .geoMercator()
+            .center([120.982025, 23.973875]) // 以台灣地理中心為中心
             .scale(scale) // 使用計算後的縮放比例
-            .translate([width / 2, height / 2])
-            .clipAngle(180);
+            .translate([width / 2, height / 2]);
 
           // 創建路徑生成器
           path = d3.geoPath().projection(projection);
@@ -171,34 +171,15 @@
       };
 
       /**
-       * 🔵 繪製以投影中心為圓心的同心距離圓
-       * 每 5000 公里一圈，淺灰虛線，永遠位於地圖上層
-       * 最多繪製到 15000 公里（3 圈）
-       * 地球邊界（180°）繪製實線圓圈
+       * 🔵 繪製經緯度網格線
+       * 麥卡托投影使用經緯度網格，而不是同心圓
        */
       const drawDistanceRings = () => {
         if (!svg || !projection || !mapContainer.value) return;
 
-        const [cx, cy] = projection.translate();
-        const scale = projection.scale();
-
-        // 以公尺為單位的地球半徑與步長（5000 公里）
-        const earthRadiusMeters = 6371008.8;
-        const stepMeters = 5000000; // 5000 km
-        const maxDistanceMeters = 15000000; // 15000 km
-
-        // 計算需要的圈數與對應像素半徑（r = scale * (distance / R)）
-        const rings = [];
-        for (let i = 1; i <= 3; i++) {
-          const distanceMeters = stepMeters * i;
-          if (distanceMeters > maxDistanceMeters) break;
-          const radiusPx = scale * (distanceMeters / earthRadiusMeters);
-          rings.push({ index: i, radiusPx, type: 'distance' });
-        }
-
-        // 加入地球邊界圓（180° = π * R，在方位等距投影中對應到 scale * π）
-        const earthBoundaryRadiusPx = scale * Math.PI;
-        rings.push({ index: 999, radiusPx: earthBoundaryRadiusPx, type: 'boundary' });
+        // 麥卡托投影不使用同心圓，改用經緯度網格線
+        // 創建經緯度網格線生成器
+        const graticule = d3.geoGraticule().step([30, 30]); // 每30度一條線
 
         if (!ringsGroup) {
           ringsGroup = svg
@@ -210,23 +191,19 @@
         // 確保在最上層
         ringsGroup.raise();
 
-        // 資料繫結與繪製
-        const selection = ringsGroup.selectAll('circle.ring').data(rings, (d) => d.index);
+        // 清除舊的網格線
+        ringsGroup.selectAll('*').remove();
 
-        selection
-          .enter()
-          .append('circle')
-          .attr('class', 'ring')
+        // 繪製經緯度網格線
+        ringsGroup
+          .append('path')
+          .datum(graticule)
+          .attr('class', 'graticule')
+          .attr('d', path)
           .attr('fill', 'none')
-          .merge(selection)
-          .attr('cx', cx)
-          .attr('cy', cy)
-          .attr('r', (d) => d.radiusPx)
-          .attr('stroke', (d) => (d.type === 'boundary' ? '#666666' : '#cccccc'))
-          .attr('stroke-width', (d) => (d.type === 'boundary' ? 2 : 1))
-          .attr('stroke-dasharray', (d) => (d.type === 'boundary' ? 'none' : '6,6'));
-
-        selection.exit().remove();
+          .attr('stroke', '#cccccc')
+          .attr('stroke-width', 1)
+          .attr('stroke-dasharray', '6,6');
       };
 
       /**
@@ -260,7 +237,7 @@
             .attr('stroke-width', 0.5)
             .attr('class', 'country');
 
-          // 距離圓圈功能已移除
+          // 經緯度網格線在 drawDistanceRings() 函數中繪製
 
           console.log('[MapTab] 世界地圖繪製完成，已繪製', countries.features?.length, '個國家');
         } catch (error) {
@@ -272,8 +249,7 @@
 
       /**
        * 🌍 導航到指定位置
-       * 使用方位等距投影，將選定的國家設為地圖中心
-       * 地球大小保持不變，只改變旋轉中心
+       * 使用麥卡托投影，將選定的國家設為地圖中心
        */
       const navigateToLocation = (center) => {
         if (!svg || !projection) return;
@@ -282,21 +258,19 @@
         const width = rect.width;
         const height = rect.height;
 
-        // 方位等距投影：使用 rotate 將選定位置旋轉到中心
-        // rotate 接受 [lambda, phi, gamma]，其中 lambda 和 phi 是經緯度的負值
-        // 地球大小保持固定，不隨導航改變
+        // 麥卡托投影：使用 center 方法設置中心點
         // 添加32px padding，確保地圖不會貼邊
         const padding = 32;
         const availableWidth = width - padding * 2;
         const availableHeight = height - padding * 2;
         const scale = Math.min(availableWidth, availableHeight) / 6;
 
-        projection.rotate([-center[0], -center[1]]).scale(scale);
+        projection.center([center[0], center[1]]).scale(scale);
 
         // 更新所有路徑
         g.selectAll('path.country').attr('d', path);
 
-        // 重新繪製距離圓
+        // 重新繪製經緯度網格線
         drawDistanceRings();
 
         console.log('[MapTab] 地圖導航完成，中心:', center);
@@ -326,7 +300,7 @@
         // 更新所有路徑
         g.selectAll('path.country').attr('d', path);
 
-        // 重新繪製距離圓
+        // 重新繪製經緯度網格線
         drawDistanceRings();
 
         console.log('[MapTab] 地圖尺寸更新完成');
@@ -359,7 +333,7 @@
           if (createMap()) {
             console.log('[MapTab] 地圖創建成功，開始繪製世界地圖');
             await drawWorldMap();
-            // 繪製距離圓（置於最上層）
+            // 繪製經緯度網格線（置於最上層）
             drawDistanceRings();
           } else {
             console.log('[MapTab] 地圖創建失敗，100ms 後重試');
@@ -427,7 +401,7 @@
         () => dataStore.layers,
         () => {
           if (isMapReady.value) {
-            // 距離圓圈功能已移除
+            // 圖層更新時無需額外操作
           }
         },
         { deep: true }
@@ -477,7 +451,7 @@
     overflow: hidden;
   }
 
-  /* 距離圓圈現在使用 D3.js 繪製，不需要 CSS 樣式 */
+  /* 經緯度網格線使用 D3.js 繪製 */
 
   :deep(.country) {
     transition: fill 0.2s ease;
