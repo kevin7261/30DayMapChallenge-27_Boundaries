@@ -292,7 +292,7 @@ export const useDataStore = defineStore(
       'Belarus', // 白俄羅斯
       'Bosnia and Herzegovina', // 波士尼亞與赫塞哥維納
       'Bosnia and Herz.', // 波士尼亞與赫塞哥維納（縮寫）
-      'Republic of the Congo', // 剛果共和國（注意：不是剛果民主共和國）
+      'Congo', // Republic of the Congo（GeoJSON NAME）
       'Cook Islands', // 庫克群島
       'Costa Rica', // 哥斯大黎加
       'Cyprus', // 賽普勒斯
