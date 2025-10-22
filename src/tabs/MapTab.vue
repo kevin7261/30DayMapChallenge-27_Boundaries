@@ -147,7 +147,7 @@
 
           projection = d3
             .geoMercator()
-            .center([0, 0]) // 以本初子午線和赤道交點為中心
+            .center([0, 0]) // 以旋轉後的中央經線與赤道交點為中心
             .fitSize([width, height], limitedBounds); // 使用限制範圍進行縮放
 
           // 創建路徑生成器
