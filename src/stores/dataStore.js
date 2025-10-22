@@ -71,13 +71,13 @@ export const useDataStore = defineStore(
     ]);
 
     /**
-     * 🔵 參與國家列表 (Participant Countries List)
+     * 🔵 邦交國列表 (Allied Countries List)
      *
-     * 這些國家在地圖上會以淺藍色標示
+     * 這些國家在地圖上會以黃色標示
      * 名稱需與 GeoJSON 中的 properties.NAME 欄位完全匹配
      * 按地區分組
      */
-    const participantCountries = ref([
+    const alliedCountries = ref([
       // 亞太地區 (Asia-Pacific)
       'Palau', // 帛琉共和國
       'Marshall Islands', // 馬紹爾群島共和國
@@ -115,13 +115,13 @@ export const useDataStore = defineStore(
     };
 
     /**
-     * 🔵 檢查國家是否為參與國 (Check if Country is Participant)
+     * 🔵 檢查國家是否為邦交國 (Check if Country is Allied)
      *
      * @param {string} countryName - 國家名稱（來自 GeoJSON 的 properties.name 或其他屬性）
-     * @returns {boolean} 是否為參與國家
+     * @returns {boolean} 是否為邦交國
      */
-    const isParticipantCountry = (countryName) => {
-      return isCountryInList(countryName, participantCountries.value);
+    const isAlliedCountry = (countryName) => {
+      return isCountryInList(countryName, alliedCountries.value);
     };
 
     // ------------------------------------------------------------
@@ -135,8 +135,8 @@ export const useDataStore = defineStore(
     return {
       mapInstance, // 地圖實例
       setMapInstance, // 設定地圖實例
-      participantCountries, // 參與國家列表
-      isParticipantCountry, // 檢查國家是否為參與國
+      alliedCountries, // 邦交國列表
+      isAlliedCountry, // 檢查國家是否為邦交國
       microStates, // 微型國家座標列表
     };
   },

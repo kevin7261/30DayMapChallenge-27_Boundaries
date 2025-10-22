@@ -43,8 +43,8 @@
 
       const colors = {
         participant: '#FFD700', // 黃色作為參與國家顏色
-        other: '#000000', // 黑色作為預設顏色
-        border: getColorFromCSS('--map-country-border'),
+        other: '#404040', // 深灰色作為預設顏色
+        border: 'none', // 不顯示邊框
         background: getColorFromCSS('--map-background'),
       };
 
@@ -203,14 +203,13 @@
             .append('path')
             .attr('d', path)
             .attr('fill', (d) => {
-              // 檢查國家顏色：參與國家使用特殊顏色，其他國家預設為黑色
+              // 檢查國家顏色：邦交國使用黃色，其他國家使用深灰色
               // 嚴格使用 GeoJSON 提供的正式名稱（優先 NAME）
               const countryName = d.properties?.NAME || d.properties?.ADMIN || d.properties?.name;
-              if (dataStore.isParticipantCountry(countryName)) return colors.participant;
+              if (dataStore.isAlliedCountry(countryName)) return colors.participant;
               return colors.other;
             })
-            .attr('stroke', colors.border)
-            .attr('stroke-width', 0.5)
+            .attr('stroke', 'none')
             .attr('class', 'country')
             .style('cursor', 'pointer');
 
@@ -265,12 +264,11 @@
             .attr('cy', (d) => projection(d.coordinates)[1])
             .attr('r', 3) // 圓圈半徑
             .attr('fill', (d) => {
-              // 檢查微型國家顏色：參與國家使用特殊顏色，其他國家預設為黑色
-              if (dataStore.isParticipantCountry(d.name)) return colors.participant;
+              // 檢查微型國家顏色：邦交國使用黃色，其他國家使用深灰色
+              if (dataStore.isAlliedCountry(d.name)) return colors.participant;
               return colors.other;
             })
-            .attr('stroke', colors.border)
-            .attr('stroke-width', 1)
+            .attr('stroke', 'none')
             .style('cursor', 'pointer');
 
           microMarkers
