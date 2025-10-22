@@ -1,4 +1,4 @@
-# 🌍 30 Day Map Challenge - Day 22: Natural Earth Data
+# 🌍 30 Day Map Challenge - Day 28: Black
 
 一個基於 Vue 3 和 D3.js 的互動式世界地圖視覺化應用，展示參展國家分布。
 
@@ -69,9 +69,9 @@ public/
 1. **克隆專案**
 
    ```bash
-   git clone https://github.com/kevin7261/30DayMapChallenge-22_Data-challenge-Natural-Earth.git
-   cd 30DayMapChallenge-22_Data-challenge-Natural-Earth
-   cd website/22_Data\ challenge-Natural\ Earth
+   git clone https://github.com/kevin7261/30DayMapChallenge-28_Black.git
+   cd 30DayMapChallenge-28_Black
+   cd website/30DayMapChallenge-28_Black
    ```
 
 2. **安裝依賴**
@@ -86,7 +86,7 @@ public/
    npm run serve
    ```
 
-   瀏覽器訪問：`http://localhost:8080/30DayMapChallenge-22_Data-challenge-Natural-Earth/`
+   瀏覽器訪問：`http://localhost:8080/30DayMapChallenge-28_Black/`
 
 4. **構建生產版本**
 
@@ -169,10 +169,8 @@ const southLatLimit = -60; // 南緯限制
 
 ## 🌐 線上展示
 
-- **GitHub Pages**:
-  https://kevin7261.github.io/30DayMapChallenge-22_Data-challenge-Natural-Earth/
-- **專案倉庫**:
-  https://github.com/kevin7261/30DayMapChallenge-22_Data-challenge-Natural-Earth
+- **GitHub Pages**: https://kevin7261.github.io/30DayMapChallenge-28_Black/
+- **專案倉庫**: https://github.com/kevin7261/30DayMapChallenge-28_Black
 
 ## 📝 開發指令
 
@@ -217,4 +215,4 @@ npm run deploy
 
 ---
 
-**#30DayMapChallenge** 🗺️ Day 22: Data Challenge - Natural Earth
+**#30DayMapChallenge** 🗺️ Day 28: Black

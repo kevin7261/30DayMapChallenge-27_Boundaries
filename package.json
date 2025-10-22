@@ -1,8 +1,8 @@
 {
-  "name": "22-data-challenge-natural-earth",
+  "name": "30DayMapChallenge-28_Black",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://kevin7261.github.io/30DayMapChallenge-22_Data-challenge-Natural-Earth",
+  "homepage": "https://kevin7261.github.io/30DayMapChallenge-28_Black",
   "scripts": {
     "serve": "vue-cli-service serve --port 8080",
     "build": "vue-cli-service build",

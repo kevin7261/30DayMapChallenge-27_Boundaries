@@ -67,6 +67,7 @@ export const useDataStore = defineStore(
       { name: 'Samoa', coordinates: [-172.1046, -13.759] }, // 薩摩亞
       { name: 'Tonga', coordinates: [-175.1982, -21.1789] }, // 東加
       { name: 'Tuvalu', coordinates: [179.1962, -8.5167] }, // 吐瓦魯
+      { name: 'Vanuatu', coordinates: [166.9591, -15.3767] }, // 萬那杜
     ]);
 
     /**
