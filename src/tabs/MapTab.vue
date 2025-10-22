@@ -194,7 +194,14 @@
             })
             .attr('stroke', '#666666')
             .attr('stroke-width', 0.5)
-            .attr('class', 'country');
+            .attr('class', 'country')
+            .style('cursor', 'pointer')
+            .append('title')
+            .text((d) => {
+              // 為每個國家添加懸停顯示國名
+              const countryName = d.properties.name || d.properties.ADMIN || d.properties.NAME;
+              return countryName || 'Unknown';
+            });
 
           console.log('[MapTab] 世界地圖繪製完成，已繪製', countries.features?.length, '個國家');
         } catch (error) {
