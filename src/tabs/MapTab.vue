@@ -473,11 +473,11 @@
   }
 
   :deep(.country) {
-    transition: fill 0.2s ease;
+    transition: filter 0.2s ease;
   }
 
   :deep(.country:hover) {
-    fill: var(--map-country-hover);
+    filter: brightness(1.2);
   }
 
   :deep(.city-marker) {
@@ -494,9 +494,6 @@
   }
 
   :deep(.micro-state-marker:hover) {
-    r: 5;
-    stroke: #333333;
-    stroke-width: 2;
-    filter: brightness(0.85);
+    filter: brightness(1.2);
   }
 </style>
