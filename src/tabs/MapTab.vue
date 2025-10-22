@@ -19,7 +19,6 @@
   import { ref, onMounted, onUnmounted, nextTick } from 'vue';
   import * as d3 from 'd3';
   import { useDataStore } from '@/stores/dataStore.js';
-  import { useDefineStore } from '@/stores/defineStore.js';
 
   export default {
     name: 'MapTab',
@@ -27,16 +26,28 @@
     setup(_, { emit }) {
       // 📦 存儲實例
       const dataStore = useDataStore();
-      const defineStore = useDefineStore();
 
       // 🗺️ 地圖相關變數
       const mapContainer = ref(null);
-      const svgElement = ref(null);
       let svg = null;
       let projection = null;
       let path = null;
       let zoom = null;
       let g = null;
+
+      // 🎨 從 CSS 變數獲取顏色
+      const getColorFromCSS = (varName) => {
+        return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+      };
+
+      const colors = {
+        participant: getColorFromCSS('--map-country-participant'),
+        withdrawn: getColorFromCSS('--map-country-withdrawn'),
+        nonParticipant: getColorFromCSS('--map-country-non-participant'),
+        other: getColorFromCSS('--map-country-other'),
+        border: getColorFromCSS('--map-country-border'),
+        background: getColorFromCSS('--map-background'),
+      };
 
       // 🎛️ 地圖控制狀態
       const isMapReady = ref(false);
@@ -44,8 +55,6 @@
 
       // 世界地圖數據
       const worldData = ref(null);
-
-      // 移除圖層和國家相關的計算屬性 - 改為全屏世界地圖顯示
 
       /**
        * 📥 載入世界地圖數據
@@ -95,9 +104,7 @@
             .append('svg')
             .attr('width', width)
             .attr('height', height)
-            .style('background', '#f0f0f0');
-
-          svgElement.value = svg.node();
+            .style('background', colors.background);
 
           // 創建投影 - 使用麥卡托投影 (Mercator Projection)
           // 限制顯示範圍到北緯80度、南緯60度
@@ -147,12 +154,11 @@
 
           isMapReady.value = true;
 
-          // 將地圖實例和方法一起傳遞
+          // 將地圖實例傳遞給父組件
           const mapInterface = {
             svg,
             projection,
             path,
-            navigateToLocation: (center) => navigateToLocation(center),
           };
 
           emit('map-ready', mapInterface);
@@ -186,13 +192,14 @@
             .append('path')
             .attr('d', path)
             .attr('fill', (d) => {
-              // 檢查國家顏色：台灣(紅色) > 參展(淺藍色) > 其他(淺灰色)
+              // 檢查國家顏色：未參與 > 退出 > 參與 > 其他
               const countryName = d.properties.name || d.properties.ADMIN || d.properties.NAME;
-              if (dataStore.isHomeCountry(countryName)) return '#ff9999'; // 台灣：紅色
-              if (dataStore.isCountryVisited(countryName)) return '#cce5ff'; // 參展：淺藍色
-              return '#d0d0d0'; // 其他：淺灰色
+              if (dataStore.isNonParticipantCountry(countryName)) return colors.nonParticipant;
+              if (dataStore.isWithdrawnCountry(countryName)) return colors.withdrawn;
+              if (dataStore.isParticipantCountry(countryName)) return colors.participant;
+              return colors.other;
             })
-            .attr('stroke', '#666666')
+            .attr('stroke', colors.border)
             .attr('stroke-width', 0.5)
             .attr('class', 'country')
             .style('cursor', 'pointer')
@@ -208,8 +215,6 @@
           console.error('[MapTab] 世界地圖繪製失敗:', error);
         }
       };
-
-      // addCityMarkers 函數已移除 - 不再需要城市標記
 
       /**
        * 🔴 繪製微型國家圓圈標記
@@ -235,10 +240,13 @@
             .attr('cy', (d) => projection(d.coordinates)[1])
             .attr('r', 3) // 圓圈半徑
             .attr('fill', (d) => {
-              // 參展：淡藍色 / 未造訪：灰色
-              return dataStore.isCountryVisited(d.name) ? '#cce5ff' : '#d0d0d0';
+              // 檢查微型國家顏色：未參與 > 退出 > 參與 > 其他
+              if (dataStore.isNonParticipantCountry(d.name)) return colors.nonParticipant;
+              if (dataStore.isWithdrawnCountry(d.name)) return colors.withdrawn;
+              if (dataStore.isParticipantCountry(d.name)) return colors.participant;
+              return colors.other;
             })
-            .attr('stroke', '#666666') // 深灰色邊框
+            .attr('stroke', colors.border)
             .attr('stroke-width', 1)
             .style('cursor', 'pointer')
             .append('title')
@@ -248,27 +256,6 @@
         } catch (error) {
           console.error('[MapTab] 微型國家圓圈繪製失敗:', error);
         }
-      };
-
-      /**
-       * 🌍 導航到指定位置（目前不使用，保留介面）
-       * 使用麥卡托投影，將選定的國家設為地圖中心
-       */
-      const navigateToLocation = (center) => {
-        if (!svg || !projection || !worldData.value) return;
-
-        const rect = mapContainer.value.getBoundingClientRect();
-        const width = rect.width;
-        const height = rect.height;
-
-        // 麥卡托投影：使用 center 方法設置中心點並調整縮放
-        const scale = Math.min(width, height) / 2;
-        projection.center([center[0], center[1]]).scale(scale);
-
-        // 更新所有路徑
-        g.selectAll('path.country').attr('d', path);
-
-        console.log('[MapTab] 地圖導航完成，中心:', center);
       };
 
       /**
@@ -410,15 +397,11 @@
         isMapReady.value = false;
       });
 
-      // 👀 監聽器已移除 - 不再需要動態導航功能
-
       // 📤 返回組件公開的屬性和方法
       return {
         mapContainer,
         mapContainerId,
         invalidateSize,
-        defineStore,
-        navigateToLocation,
       };
     },
   };
@@ -444,7 +427,7 @@
   }
 
   :deep(.country:hover) {
-    fill: #c0c0c0;
+    fill: var(--map-country-hover);
   }
 
   :deep(.city-marker) {

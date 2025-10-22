@@ -29,4 +29,13 @@
   --my-color-gray-800: #424242;
   --my-color-gray-900: #212121;
   --my-color-black: #000000;
+
+  /* 地圖國家顏色 (Map Country Colors) */
+  --map-country-participant: #cce5ff; /* 參與國家：淺藍色 */
+  --map-country-withdrawn: #90ee90; /* 退出國家：綠色 */
+  --map-country-non-participant: #ff9999; /* 未參與國家：紅色 */
+  --map-country-other: #d0d0d0; /* 其他國家：淺灰色 */
+  --map-country-border: #666666; /* 國家邊框：深灰色 */
+  --map-background: #f0f0f0; /* 地圖背景：淺灰色 */
+  --map-country-hover: #c0c0c0; /* 懸停顏色：灰色 */
 }

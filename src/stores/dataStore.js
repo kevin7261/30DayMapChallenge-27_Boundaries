@@ -21,13 +21,6 @@ export const useDataStore = defineStore(
   'data', // 商店唯一標識符
   () => {
     /**
-     * 🏠 台灣 (Taiwan)
-     *
-     * 台灣在地圖上會以紅色標示
-     */
-    const homeCountry = ref('Taiwan');
-
-    /**
      * 🔴 微型國家座標 (Micro-states Coordinates)
      *
      * 這些國家在低解析度地圖中不存在，用圓圈標記顯示
@@ -77,17 +70,18 @@ export const useDataStore = defineStore(
       { name: 'Micronesia', coordinates: [158.1625, 6.9248] }, // 密克羅尼西亞
       { name: 'Tonga', coordinates: [-175.1982, -21.1789] }, // 東加
       { name: 'Samoa', coordinates: [-172.1046, -13.759] }, // 薩摩亞
+      { name: 'Niue', coordinates: [-169.9167, -19.0544] }, // 紐埃
       { name: 'Kiribati', coordinates: [-157.363, 1.8709] }, // 吉里巴斯
     ]);
 
     /**
-     * 🌍 參展國家列表 (Visited Countries List)
+     * 🔵 參與國家列表 (Participant Countries List)
      *
      * 這些國家在地圖上會以淺藍色標示
      * 名稱需與 GeoJSON 中的 properties.NAME 欄位完全匹配
      * 按英文字母順序排列
      */
-    const visitedCountries = ref([
+    const participantCountries = ref([
       'Algeria', // 阿爾及利亞
       'Angola', // 安哥拉
       'Antigua and Barbuda', // 安地卡及巴布達
@@ -235,6 +229,7 @@ export const useDataStore = defineStore(
       'Suriname', // 蘇利南
       'Sweden', // 瑞典
       'Switzerland', // 瑞士
+      'Taiwan', // 台灣
       'Tajikistan', // 塔吉克
       'Tanzania', // 坦尚尼亞
       'Thailand', // 泰國
@@ -264,34 +259,87 @@ export const useDataStore = defineStore(
     ]);
 
     /**
-     * 🏠 檢查國家是否為台灣 (Check if Country is Taiwan)
+     * 🟢 退出國家列表 (Withdrawn Countries List)
      *
-     * @param {string} countryName - 國家名稱（來自 GeoJSON 的 properties.name 或其他屬性）
-     * @returns {boolean} 是否為台灣
+     * 這些國家已退出，在地圖上會以綠色標示
+     * 包含退出日期
      */
-    const isHomeCountry = (countryName) => {
-      if (!countryName) return false;
-      return countryName.trim() === homeCountry.value;
-    };
+    const withdrawnCountries = ref([
+      'Afghanistan', // 阿富汗 (1 November 2024)
+      'Argentina', // 阿根廷 (18 June 2024)
+      'Botswana', // 波札那 (27 December 2024)
+      'El Salvador', // 薩爾瓦多 (27 December 2024)
+      'Estonia', // 愛沙尼亞 (14 November 2023)
+      'Greece', // 希臘 (29 November 2024)
+      'Iran', // 伊朗 (27 December 2024)
+      'Mexico', // 墨西哥 (14 November 2023)
+      'Niger', // 尼日 (1 November 2024)
+      'Niue', // 紐埃 (18 June 2024)
+      'Russia', // 俄羅斯 (28 November 2023)
+      'Russian Federation', // 俄羅斯聯邦（別名）
+      'South Africa', // 南非 (27 December 2024)
+    ]);
 
     /**
-     * 🔍 檢查國家是否參展 (Check if Country is Visited)
+     * 🔴 未參與國家列表 (Non-Participant Countries List)
      *
-     * @param {string} countryName - 國家名稱（來自 GeoJSON 的 properties.name 或其他屬性）
-     * @returns {boolean} 是否為參展國家
+     * 這些國家未參與，在地圖上會以紅色標示
      */
-    const isCountryVisited = (countryName) => {
+    const nonParticipantCountries = ref([
+      'Albania', // 阿爾巴尼亞
+      'Andorra', // 安道爾
+      'Bahamas', // 巴哈馬
+      'Belarus', // 白俄羅斯
+      'Bosnia and Herzegovina', // 波士尼亞與赫塞哥維納
+      'Bosnia and Herz.', // 波士尼亞與赫塞哥維納（縮寫）
+      'Congo', // 剛果
+      'Republic of Congo', // 剛果共和國
+      'Cook Islands', // 庫克群島
+      'Costa Rica', // 哥斯大黎加
+      'Cyprus', // 賽普勒斯
+      'Dominica', // 多米尼克
+      'Ecuador', // 厄瓜多
+      'Eritrea', // 厄利垂亞
+      'Georgia', // 喬治亞
+      'Iraq', // 伊拉克
+      'Kiribati', // 吉里巴斯
+      'Lebanon', // 黎巴嫩
+      'Libya', // 利比亞
+      'Liechtenstein', // 列支敦士登
+      'Maldives', // 馬爾地夫
+      'Morocco', // 摩洛哥
+      'Myanmar', // 緬甸
+      'Burma', // 緬甸（別名）
+      'Namibia', // 納米比亞
+      'New Zealand', // 紐西蘭
+      'Nicaragua', // 尼加拉瓜
+      'North Korea', // 北韓
+      'Dem. Rep. Korea', // 北韓（縮寫）
+      'Korea', // 北韓（簡稱）
+      'Syria', // 敘利亞
+      'Syrian Arab Republic', // 敘利亞（官方名稱）
+      'Venezuela', // 委內瑞拉
+    ]);
+
+    /**
+     * 🔍 檢查國家類型的輔助函數
+     *
+     * @param {string} countryName - 國家名稱
+     * @param {Array} countryList - 要檢查的國家列表
+     * @returns {boolean} 是否在列表中
+     */
+    const isCountryInList = (countryName, countryList) => {
       if (!countryName) return false;
 
       // 標準化國家名稱進行比對
       const normalizedName = countryName.trim();
 
-      return visitedCountries.value.some((visitedCountry) => {
+      return countryList.some((country) => {
         // 完全匹配
-        if (normalizedName === visitedCountry) return true;
+        if (normalizedName === country) return true;
 
         // 部分匹配（例如 "United States" 匹配 "United States of America"）
-        if (normalizedName.includes(visitedCountry) || visitedCountry.includes(normalizedName)) {
+        if (normalizedName.includes(country) || country.includes(normalizedName)) {
           return true;
         }
 
@@ -299,12 +347,34 @@ export const useDataStore = defineStore(
       });
     };
 
-    // ------------------------------------------------------------
-    // 選中的地圖物件（用於清除選取狀態）
-    const selectedFeature = ref(null);
+    /**
+     * 🔵 檢查國家是否為參與國 (Check if Country is Participant)
+     *
+     * @param {string} countryName - 國家名稱（來自 GeoJSON 的 properties.name 或其他屬性）
+     * @returns {boolean} 是否為參與國家
+     */
+    const isParticipantCountry = (countryName) => {
+      return isCountryInList(countryName, participantCountries.value);
+    };
 
-    const setSelectedFeature = (feature) => {
-      selectedFeature.value = feature;
+    /**
+     * 🟢 檢查國家是否為退出國 (Check if Country is Withdrawn)
+     *
+     * @param {string} countryName - 國家名稱（來自 GeoJSON 的 properties.name 或其他屬性）
+     * @returns {boolean} 是否為退出國家
+     */
+    const isWithdrawnCountry = (countryName) => {
+      return isCountryInList(countryName, withdrawnCountries.value);
+    };
+
+    /**
+     * 🔴 檢查國家是否為未參與國 (Check if Country is Non-Participant)
+     *
+     * @param {string} countryName - 國家名稱（來自 GeoJSON 的 properties.name 或其他屬性）
+     * @returns {boolean} 是否為未參與國家
+     */
+    const isNonParticipantCountry = (countryName) => {
+      return isCountryInList(countryName, nonParticipantCountries.value);
     };
 
     // ------------------------------------------------------------
@@ -316,14 +386,14 @@ export const useDataStore = defineStore(
     };
 
     return {
-      selectedFeature, // 選中的地圖要素
-      setSelectedFeature, // 設定選中的地圖要素
       mapInstance, // 地圖實例
       setMapInstance, // 設定地圖實例
-      homeCountry, // 台灣（紅色標示）
-      isHomeCountry, // 檢查國家是否為台灣
-      visitedCountries, // 參展國家列表
-      isCountryVisited, // 檢查國家是否參展
+      participantCountries, // 參與國家列表
+      withdrawnCountries, // 退出國家列表
+      nonParticipantCountries, // 未參與國家列表
+      isParticipantCountry, // 檢查國家是否為參與國
+      isWithdrawnCountry, // 檢查國家是否為退出國
+      isNonParticipantCountry, // 檢查國家是否為未參與國
       microStates, // 微型國家座標列表
     };
   },
