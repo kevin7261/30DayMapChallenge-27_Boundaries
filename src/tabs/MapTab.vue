@@ -119,11 +119,11 @@
             .style('z-index', '10');
 
           // 創建投影 - 使用麥卡托投影 (Mercator Projection)
-          // 限制顯示範圍到北緯80度、南緯60度
-          const northLatLimit = 80; // 北緯限制
-          const southLatLimit = -60; // 南緯限制
+          // 限制顯示範圍到北緯75度、南緯65度
+          const northLatLimit = 75; // 北緯限制
+          const southLatLimit = -65; // 南緯限制
 
-          // 創建限制範圍的 GeoJSON（北緯80度、南緯60度）
+          // 創建限制範圍的 GeoJSON（北緯75度、南緯65度）
           const limitedBounds = {
             type: 'FeatureCollection',
             features: [
@@ -316,8 +316,8 @@
 
         svg.attr('width', width).attr('height', height);
 
-        // 自動調整投影以適應新的容器尺寸（限制到北緯80度、南緯60度）
-        const northLatLimit = 80; // 北緯限制
+        // 自動調整投影以適應新的容器尺寸（限制到北緯75度、南緯65度）
+        const northLatLimit = 75; // 北緯限制
         const southLatLimit = -60; // 南緯限制
         const limitedBounds = {
           type: 'FeatureCollection',
