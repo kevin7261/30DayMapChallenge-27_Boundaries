@@ -7,7 +7,6 @@
    * - 使用 D3.js 顯示世界地圖
    * - 提供城市導航功能
    * - 使用麥卡托投影 (Mercator Projection)
-   * - 顯示經緯度網格線
    * - 響應式設計
    *
    * 技術架構：
@@ -38,7 +37,6 @@
       let path = null;
       let zoom = null;
       let g = null;
-      let ringsGroup = null;
 
       // 🎛️ 地圖控制狀態
       const isMapReady = ref(false);
@@ -102,11 +100,36 @@
           svgElement.value = svg.node();
 
           // 創建投影 - 使用麥卡托投影 (Mercator Projection)
-          // 自動調整以顯示整個世界地圖
+          // 限制顯示範圍到北緯80度、南緯60度
+          const northLatLimit = 80; // 北緯限制
+          const southLatLimit = -60; // 南緯限制
+
+          // 創建限制範圍的 GeoJSON（北緯80度、南緯60度）
+          const limitedBounds = {
+            type: 'FeatureCollection',
+            features: [
+              {
+                type: 'Feature',
+                geometry: {
+                  type: 'Polygon',
+                  coordinates: [
+                    [
+                      [-180, southLatLimit],
+                      [180, southLatLimit],
+                      [180, northLatLimit],
+                      [-180, northLatLimit],
+                      [-180, southLatLimit],
+                    ],
+                  ],
+                },
+              },
+            ],
+          };
+
           projection = d3
             .geoMercator()
             .center([0, 0]) // 以本初子午線和赤道交點為中心
-            .fitSize([width, height], worldData.value); // 自動縮放以適應容器
+            .fitSize([width, height], limitedBounds); // 使用限制範圍進行縮放
 
           // 創建路徑生成器
           path = d3.geoPath().projection(projection);
@@ -143,41 +166,6 @@
       };
 
       /**
-       * 🔵 繪製經緯度網格線
-       * 麥卡托投影使用經緯度網格，而不是同心圓
-       */
-      const drawDistanceRings = () => {
-        if (!svg || !projection || !mapContainer.value) return;
-
-        // 麥卡托投影不使用同心圓，改用經緯度網格線
-        // 創建經緯度網格線生成器
-        const graticule = d3.geoGraticule().step([30, 30]); // 每30度一條線
-
-        if (!ringsGroup) {
-          ringsGroup = svg
-            .append('g')
-            .attr('class', 'rings-overlay')
-            .style('pointer-events', 'none');
-        }
-
-        // 確保在最上層
-        ringsGroup.raise();
-
-        // 清除舊的網格線
-        ringsGroup.selectAll('*').remove();
-
-        // 繪製經緯度網格線
-        ringsGroup
-          .append('path')
-          .datum(graticule)
-          .attr('class', 'graticule')
-          .attr('d', path)
-          .attr('fill', 'none')
-          .attr('stroke', '#cccccc')
-          .attr('stroke-width', 1);
-      };
-
-      /**
        * 🎨 繪製世界地圖
        */
       const drawWorldMap = async () => {
@@ -198,17 +186,15 @@
             .append('path')
             .attr('d', path)
             .attr('fill', (d) => {
-              // 檢查國家顏色：台灣(紅色) > 已造訪(淺藍色) > 其他(淺灰色)
+              // 檢查國家顏色：台灣(紅色) > 參展(淺藍色) > 其他(淺灰色)
               const countryName = d.properties.name || d.properties.ADMIN || d.properties.NAME;
               if (dataStore.isHomeCountry(countryName)) return '#ff9999'; // 台灣：紅色
-              if (dataStore.isCountryVisited(countryName)) return '#cce5ff'; // 已造訪：淺藍色
+              if (dataStore.isCountryVisited(countryName)) return '#cce5ff'; // 參展：淺藍色
               return '#d0d0d0'; // 其他：淺灰色
             })
             .attr('stroke', '#666666')
             .attr('stroke-width', 0.5)
             .attr('class', 'country');
-
-          // 經緯度網格線在 drawDistanceRings() 函數中繪製
 
           console.log('[MapTab] 世界地圖繪製完成，已繪製', countries.features?.length, '個國家');
         } catch (error) {
@@ -217,6 +203,45 @@
       };
 
       // addCityMarkers 函數已移除 - 不再需要城市標記
+
+      /**
+       * 🔴 繪製微型國家圓圈標記
+       * 為那些在低解析度地圖中不存在的微型國家繪製圓圈
+       * 參展：淡藍色 / 未造訪：灰色
+       */
+      const drawMicroStates = () => {
+        if (!g || !projection) {
+          console.error('[MapTab] 無法繪製微型國家: g=', !!g, 'projection=', !!projection);
+          return;
+        }
+
+        try {
+          console.log('[MapTab] 開始繪製微型國家圓圈，總數量:', dataStore.microStates.length);
+
+          // 繪製所有微型國家的圓圈標記
+          g.selectAll('.micro-state-marker')
+            .data(dataStore.microStates)
+            .enter()
+            .append('circle')
+            .attr('class', 'micro-state-marker')
+            .attr('cx', (d) => projection(d.coordinates)[0])
+            .attr('cy', (d) => projection(d.coordinates)[1])
+            .attr('r', 3) // 圓圈半徑
+            .attr('fill', (d) => {
+              // 參展：淡藍色 / 未造訪：灰色
+              return dataStore.isCountryVisited(d.name) ? '#cce5ff' : '#d0d0d0';
+            })
+            .attr('stroke', '#666666') // 深灰色邊框
+            .attr('stroke-width', 1)
+            .style('cursor', 'pointer')
+            .append('title')
+            .text((d) => d.name); // 滑鼠懸停顯示國家名稱
+
+          console.log('[MapTab] 微型國家圓圈繪製完成');
+        } catch (error) {
+          console.error('[MapTab] 微型國家圓圈繪製失敗:', error);
+        }
+      };
 
       /**
        * 🌍 導航到指定位置（目前不使用，保留介面）
@@ -236,9 +261,6 @@
         // 更新所有路徑
         g.selectAll('path.country').attr('d', path);
 
-        // 重新繪製經緯度網格線
-        drawDistanceRings();
-
         console.log('[MapTab] 地圖導航完成，中心:', center);
       };
 
@@ -255,14 +277,38 @@
 
         svg.attr('width', width).attr('height', height);
 
-        // 自動調整投影以適應新的容器尺寸
-        projection.fitSize([width, height], worldData.value);
+        // 自動調整投影以適應新的容器尺寸（限制到北緯80度、南緯60度）
+        const northLatLimit = 80; // 北緯限制
+        const southLatLimit = -60; // 南緯限制
+        const limitedBounds = {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              geometry: {
+                type: 'Polygon',
+                coordinates: [
+                  [
+                    [-180, southLatLimit],
+                    [180, southLatLimit],
+                    [180, northLatLimit],
+                    [-180, northLatLimit],
+                    [-180, southLatLimit],
+                  ],
+                ],
+              },
+            },
+          ],
+        };
+        projection.fitSize([width, height], limitedBounds);
 
         // 更新所有路徑
         g.selectAll('path.country').attr('d', path);
 
-        // 重新繪製經緯度網格線
-        drawDistanceRings();
+        // 清除舊的微型國家圓圈
+        g.selectAll('.micro-state-marker').remove();
+        // 重新繪製微型國家圓圈標記
+        drawMicroStates();
 
         console.log('[MapTab] 地圖尺寸更新完成');
       };
@@ -294,8 +340,8 @@
           if (createMap()) {
             console.log('[MapTab] 地圖創建成功，開始繪製世界地圖');
             await drawWorldMap();
-            // 繪製經緯度網格線（置於最上層）
-            drawDistanceRings();
+            // 繪製微型國家圓圈標記
+            drawMicroStates();
           } else {
             console.log('[MapTab] 地圖創建失敗，100ms 後重試');
             setTimeout(tryCreateMap, 100);
@@ -386,8 +432,6 @@
     overflow: hidden;
   }
 
-  /* 經緯度網格線使用 D3.js 繪製 */
-
   :deep(.country) {
     transition: fill 0.2s ease;
   }
@@ -402,5 +446,17 @@
 
   :deep(.city-marker:hover) {
     r: 6;
+  }
+
+  /* 微型國家圓圈標記樣式 */
+  :deep(.micro-state-marker) {
+    transition: all 0.2s ease;
+  }
+
+  :deep(.micro-state-marker:hover) {
+    r: 5;
+    stroke: #333333;
+    stroke-width: 2;
+    filter: brightness(0.85);
   }
 </style>
