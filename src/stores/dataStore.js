@@ -330,24 +330,9 @@ export const useDataStore = defineStore(
     const isCountryInList = (countryName, countryList) => {
       if (!countryName) return false;
 
-      // 標準化國家名稱進行比對
+      // 僅允許完全匹配；名稱以 GeoJSON 的欄位為準
       const normalizedName = countryName.trim();
-
-      return countryList.some((country) => {
-        // 完全匹配
-        if (normalizedName === country) return true;
-
-        // 部分匹配（例如 "United States" 匹配 "United States of America"）
-        // 但避免短名稱誤匹配（例如 "Congo" 不應匹配 "Democratic Republic of the Congo"）
-        const minLength = 10; // 最小長度限制，避免過短的名稱造成誤匹配
-        if (country.length >= minLength || normalizedName.length >= minLength) {
-          if (normalizedName.includes(country) || country.includes(normalizedName)) {
-            return true;
-          }
-        }
-
-        return false;
-      });
+      return countryList.some((country) => normalizedName === country);
     };
 
     /**

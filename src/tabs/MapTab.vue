@@ -206,7 +206,8 @@
             .attr('d', path)
             .attr('fill', (d) => {
               // 檢查國家顏色：未參與 > 退出 > 參與 > 其他
-              const countryName = d.properties.name || d.properties.ADMIN || d.properties.NAME;
+              // 嚴格使用 GeoJSON 提供的正式名稱（優先 NAME）
+              const countryName = d.properties?.NAME || d.properties?.ADMIN || d.properties?.name;
               if (dataStore.isNonParticipantCountry(countryName)) return colors.nonParticipant;
               if (dataStore.isWithdrawnCountry(countryName)) return colors.withdrawn;
               if (dataStore.isParticipantCountry(countryName)) return colors.participant;
@@ -220,7 +221,7 @@
           // 滑鼠事件：顯示國名 tooltip
           countryPaths
             .on('mouseover', (event, d) => {
-              const countryName = d.properties.name || d.properties.ADMIN || d.properties.NAME;
+              const countryName = d.properties?.NAME || d.properties?.ADMIN || d.properties?.name;
               if (tooltipDiv) {
                 tooltipDiv.style('visibility', 'visible').text(countryName || 'Unknown');
               }
