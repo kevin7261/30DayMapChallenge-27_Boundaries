@@ -34,6 +34,7 @@
       let path = null;
       let zoom = null;
       let g = null;
+      let tooltipDiv = null;
 
       // 🎨 從 CSS 變數獲取顏色
       const getColorFromCSS = (varName) => {
@@ -105,6 +106,17 @@
             .attr('width', width)
             .attr('height', height)
             .style('background', colors.background);
+
+          // 建立滑鼠提示框 (tooltip)
+          d3.select(mapContainer.value).style('position', 'relative');
+          tooltipDiv = d3
+            .select(mapContainer.value)
+            .append('div')
+            .attr('class', 'map-tooltip')
+            .style('position', 'absolute')
+            .style('pointer-events', 'none')
+            .style('visibility', 'hidden')
+            .style('z-index', '10');
 
           // 創建投影 - 使用麥卡托投影 (Mercator Projection)
           // 限制顯示範圍到北緯80度、南緯60度
@@ -186,7 +198,8 @@
           console.log('[MapTab] 開始繪製地圖，國家數量:', countries.features?.length);
 
           // 繪製國家邊界
-          g.selectAll('path')
+          const countryPaths = g
+            .selectAll('path')
             .data(countries.features)
             .enter()
             .append('path')
@@ -202,12 +215,26 @@
             .attr('stroke', colors.border)
             .attr('stroke-width', 0.5)
             .attr('class', 'country')
-            .style('cursor', 'pointer')
-            .append('title')
-            .text((d) => {
-              // 為每個國家添加懸停顯示國名
+            .style('cursor', 'pointer');
+
+          // 滑鼠事件：顯示國名 tooltip
+          countryPaths
+            .on('mouseover', (event, d) => {
               const countryName = d.properties.name || d.properties.ADMIN || d.properties.NAME;
-              return countryName || 'Unknown';
+              if (tooltipDiv) {
+                tooltipDiv.style('visibility', 'visible').text(countryName || 'Unknown');
+              }
+            })
+            .on('mousemove', (event) => {
+              if (tooltipDiv) {
+                const [x, y] = d3.pointer(event, mapContainer.value);
+                tooltipDiv.style('left', `${x + 12}px`).style('top', `${y + 12}px`);
+              }
+            })
+            .on('mouseout', () => {
+              if (tooltipDiv) {
+                tooltipDiv.style('visibility', 'hidden');
+              }
             });
 
           console.log('[MapTab] 世界地圖繪製完成，已繪製', countries.features?.length, '個國家');
@@ -231,7 +258,8 @@
           console.log('[MapTab] 開始繪製微型國家圓圈，總數量:', dataStore.microStates.length);
 
           // 繪製所有微型國家的圓圈標記
-          g.selectAll('.micro-state-marker')
+          const microMarkers = g
+            .selectAll('.micro-state-marker')
             .data(dataStore.microStates)
             .enter()
             .append('circle')
@@ -248,9 +276,25 @@
             })
             .attr('stroke', colors.border)
             .attr('stroke-width', 1)
-            .style('cursor', 'pointer')
-            .append('title')
-            .text((d) => d.name); // 滑鼠懸停顯示國家名稱
+            .style('cursor', 'pointer');
+
+          microMarkers
+            .on('mouseover', (event, d) => {
+              if (tooltipDiv) {
+                tooltipDiv.style('visibility', 'visible').text(d.name);
+              }
+            })
+            .on('mousemove', (event) => {
+              if (tooltipDiv) {
+                const [x, y] = d3.pointer(event, mapContainer.value);
+                tooltipDiv.style('left', `${x + 12}px`).style('top', `${y + 12}px`);
+              }
+            })
+            .on('mouseout', () => {
+              if (tooltipDiv) {
+                tooltipDiv.style('visibility', 'hidden');
+              }
+            });
 
           console.log('[MapTab] 微型國家圓圈繪製完成');
         } catch (error) {
@@ -388,6 +432,11 @@
         if (svg) {
           svg.remove();
           svg = null;
+        }
+
+        if (tooltipDiv) {
+          tooltipDiv.remove();
+          tooltipDiv = null;
         }
 
         projection = null;

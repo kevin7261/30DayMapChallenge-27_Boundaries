@@ -292,8 +292,7 @@ export const useDataStore = defineStore(
       'Belarus', // 白俄羅斯
       'Bosnia and Herzegovina', // 波士尼亞與赫塞哥維納
       'Bosnia and Herz.', // 波士尼亞與赫塞哥維納（縮寫）
-      'Congo', // 剛果
-      'Republic of Congo', // 剛果共和國
+      'Republic of the Congo', // 剛果共和國（注意：不是剛果民主共和國）
       'Cook Islands', // 庫克群島
       'Costa Rica', // 哥斯大黎加
       'Cyprus', // 賽普勒斯
@@ -339,8 +338,12 @@ export const useDataStore = defineStore(
         if (normalizedName === country) return true;
 
         // 部分匹配（例如 "United States" 匹配 "United States of America"）
-        if (normalizedName.includes(country) || country.includes(normalizedName)) {
-          return true;
+        // 但避免短名稱誤匹配（例如 "Congo" 不應匹配 "Democratic Republic of the Congo"）
+        const minLength = 10; // 最小長度限制，避免過短的名稱造成誤匹配
+        if (country.length >= minLength || normalizedName.length >= minLength) {
+          if (normalizedName.includes(country) || country.includes(normalizedName)) {
+            return true;
+          }
         }
 
         return false;
