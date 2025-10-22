@@ -36,16 +36,12 @@
       let g = null;
       let tooltipDiv = null;
 
-      // 🎨 從 CSS 變數獲取顏色
-      const getColorFromCSS = (varName) => {
-        return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
-      };
-
+      // 🎨 顏色配置
       const colors = {
-        participant: '#FFD700', // 黃色作為參與國家顏色
-        other: '#404040', // 深灰色作為預設顏色
+        participant: '#FFD700', // 黃色作為邦交國顏色
+        other: '#1a1a1a', // 很深的灰色作為預設顏色
         border: 'none', // 不顯示邊框
-        background: getColorFromCSS('--map-background'),
+        background: '#2a2a2a', // 海洋比國家淺一點的灰色
       };
 
       // 🎛️ 地圖控制狀態
