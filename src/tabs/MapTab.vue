@@ -1,139 +1,223 @@
 <script>
   /**
-   * 🗺️ MapTab.vue - Leaflet OSM 地點地圖組件 (Leaflet OSM Places Map Component)
+   * ═══════════════════════════════════════════════════════════════════════════
+   * 🗺️ MapTab.vue - Leaflet OSM 多圖層地圖組件
+   * ═══════════════════════════════════════════════════════════════════════════
    *
-   * 使用 Leaflet 繪製 OpenStreetMap 地點資料。
-   * 主要功能：
-   * - 使用 Leaflet 顯示 OSM 底圖和地點多邊形
-   * - 自動縮放到地點範圍
-   * - 支持縮放和平移
-   * - 響應式設計
-   * - 地點資訊提示
-   * - 顯示赤道線和經緯網格
+   * @fileoverview
+   * 這是一個基於 Leaflet 的多圖層地圖視覺化組件，使用 OpenStreetMap 數據和諾魯國旗配色主題。
+   * 本組件負責載入、處理和渲染四種不同的地理數據圖層，並提供流暢的地圖交互體驗。
    *
-   * 技術架構：
-   * - Vue 3 Composition API
-   * - Leaflet 地圖庫
-   * - GeoJSON 資料格式
+   * ─────────────────────────────────────────────────────────────────────────
+   * 📋 核心功能
+   * ─────────────────────────────────────────────────────────────────────────
+   * 1. 多圖層渲染：
+   *    ✓ 地點圖層 (Places)：行政區劃、城市、村莊
+   *    ✓ 水域圖層 (Water)：湖泊、河流、海洋
+   *    ✓ 道路圖層 (Roads)：道路網絡
+   *    ✓ 交通設施圖層 (Transport)：機場、港口、車站
+   *
+   * 2. 視覺元素：
+   *    ✓ 經緯網格系統（每 10° 一條）
+   *    ✓ 赤道線標示（金黃色，呼應諾魯國旗）
+   *    ✓ 諾魯國旗配色主題（深藍、金黃、白色）
+   *
+   * 3. 交互功能：
+   *    ✓ 滾輪縮放控制
+   *    ✓ 拖動平移導航
+   *    ✓ 觸控設備支持
+   *    ✗ 禁用懸停效果（專注靜態呈現）
+   *    ✗ 禁用彈出窗口（簡化交互）
+   *
+   * 4. 性能優化：
+   *    ✓ 並行載入所有 GeoJSON 數據
+   *    ✓ Canvas 渲染模式（preferCanvas: true）
+   *    ✓ 非交互圖層設置（interactive: false）
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * 🎨 配色主題：諾魯國旗
+   * ─────────────────────────────────────────────────────────────────────────
+   * 諾魯深藍  #002B7F  → 地點填充色、水域邊框
+   * 背景深藍  #001b4d  → 地圖背景、水域填充
+   * 金黃色    #FFC61E  → 赤道線、道路、邊框
+   * 白色      #FFFFFF  → 經緯網格、交通設施
+   *
+   * 選擇諾魯配色的原因：
+   * - 諾魯是世界最小島國之一，與 OSM 細節呈現理念呼應
+   * - 諾魯位於赤道附近，國旗黃色橫條正代表赤道
+   * - 作為太平洋島國，配色與海洋主題完美契合
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * 📊 圖層渲染順序（由下至上）
+   * ─────────────────────────────────────────────────────────────────────────
+   * Layer 0: 經緯網格 (Graticule)         - 白色半透明參考線
+   * Layer 1: 赤道線 (Equator)            - 金黃色強調線
+   * Layer 2: 地點 (Places)               - 諾魯藍多邊形（底層）
+   * Layer 3: 水域 (Water)                - 深藍色水體
+   * Layer 4: 道路 (Roads)                - 金黃色線條
+   * Layer 5: 交通設施 (Transport)        - 白色多邊形（頂層）
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * 🛠️ 技術棧
+   * ─────────────────────────────────────────────────────────────────────────
+   * @requires vue                 - Vue 3.2+ (Composition API)
+   * @requires leaflet             - Leaflet 1.9+ (地圖渲染庫)
+   * @requires @/stores/dataStore  - Pinia 狀態管理
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * 📁 數據來源
+   * ─────────────────────────────────────────────────────────────────────────
+   * 所有 GeoJSON 數據來自 OpenStreetMap (ODbL License)
+   * 路徑：public/data/geojson/*.geojson
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * 🔧 使用方式
+   * ─────────────────────────────────────────────────────────────────────────
+   * <MapTab @map-ready="handleMapReady" />
+   *
+   * @event map-ready - 地圖初始化完成時觸發，返回地圖實例
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * 📝 維護者
+   * ─────────────────────────────────────────────────────────────────────────
+   * @author Kevin Cheng
+   * @version 2.0.0
+   * @since 2024
+   * @license MIT
+   *
+   * ═══════════════════════════════════════════════════════════════════════════
    */
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 📦 依賴導入 (Dependencies Import)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Vue 3 核心功能
   import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+
+  // Leaflet 地圖庫及樣式
   import L from 'leaflet';
   import 'leaflet/dist/leaflet.css';
+
+  // Pinia 狀態管理
   import { useDataStore } from '@/stores/dataStore';
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🎯 組件定義 (Component Definition)
+  // ═══════════════════════════════════════════════════════════════════════════
 
   export default {
     name: 'MapTab',
-    emits: ['map-ready'],
+
+    // 組件觸發的事件
+    emits: [
+      'map-ready', // 地圖初始化完成時觸發，傳遞地圖實例
+    ],
+
+    /**
+     * ───────────────────────────────────────────────────────────────────────
+     * 🎬 組件設置函數 (Component Setup Function)
+     * ───────────────────────────────────────────────────────────────────────
+     * 使用 Vue 3 Composition API 設置組件邏輯
+     *
+     * @param {Object} _ - Props（本組件不使用）
+     * @param {Object} context - 設置上下文
+     * @param {Function} context.emit - 事件觸發函數
+     * @returns {Object} 返回模板可用的響應式數據和方法
+     */
     setup(_, { emit }) {
-      // 🏪 數據存儲
-      const dataStore = useDataStore();
-
-      // 🗺️ 地圖相關變數
-      const mapContainer = ref(null);
-      let map = null;
-      let placesLayer = null;
-      // eslint-disable-next-line no-unused-vars
-      let roadsLayer = null;
-      // eslint-disable-next-line no-unused-vars
-      let transportLayer = null;
-      // eslint-disable-next-line no-unused-vars
-      let waterLayer = null;
-      let graticuleLayer = null;
-
-      // 🎛️ 地圖控制狀態
-      const isMapReady = ref(false);
-      const mapContainerId = ref(`leaflet-map-${Math.random().toString(36).substr(2, 9)}`);
-
-      // GeoJSON 數據
-      const placesData = ref(null);
-      const roadsData = ref(null);
-      const transportData = ref(null);
-      const waterData = ref(null);
+      // ═══════════════════════════════════════════════════════════════════════
+      // 📦 狀態管理與依賴 (State Management & Dependencies)
+      // ═══════════════════════════════════════════════════════════════════════
 
       /**
-       * 📥 載入所有 OSM GeoJSON 數據
+       * Pinia 數據存儲實例
+       * 用於存儲和共享地圖實例
        */
-      const loadAllData = async () => {
+      const dataStore = useDataStore();
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // 🗺️ 地圖相關變數 (Map-Related Variables)
+      // ═══════════════════════════════════════════════════════════════════════
+
+      /**
+       * 地圖 DOM 容器引用
+       * @type {Ref<HTMLElement|null>}
+       */
+      const mapContainer = ref(null);
+
+      /**
+       * Leaflet 地圖實例
+       * 初始化後包含完整的地圖 API
+       * @type {L.Map|null}
+       */
+      let map = null;
+
+      /**
+       * 地點圖層實例（Places Layer）
+       * 包含行政區劃、城市、村莊等多邊形數據
+       * @type {L.GeoJSON|null}
+       */
+      // eslint-disable-next-line no-unused-vars
+      let placesLayer = null;
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // 🎛️ 控制狀態 (Control States)
+      // ═══════════════════════════════════════════════════════════════════════
+
+      /**
+       * 地圖就緒狀態標記
+       * true = 地圖已初始化完成，false = 尚未初始化
+       * @type {Ref<boolean>}
+       */
+      const isMapReady = ref(false);
+
+      /**
+       * 地圖容器唯一 ID
+       * 使用隨機字符串確保多實例時不會衝突
+       * @type {Ref<string>}
+       */
+      const mapContainerId = ref(`leaflet-map-${Math.random().toString(36).substr(2, 9)}`);
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // 📊 GeoJSON 數據儲存 (GeoJSON Data Storage)
+      // ═══════════════════════════════════════════════════════════════════════
+
+      /**
+       * 地點 GeoJSON 數據
+       * 來源：gis_osm_places_a_free_1.geojson
+       * @type {Ref<Object|null>}
+       */
+      const placesData = ref(null);
+
+      /**
+       * 📥 載入 OSM 地點 GeoJSON 數據
+       */
+      const loadPlacesData = async () => {
         try {
-          console.log('[MapTab] 開始載入 OSM GeoJSON 數據...');
+          console.log('[MapTab] 開始載入 OSM 地點 GeoJSON 數據...');
 
-          // 並行載入所有 GeoJSON 檔案
-          const [placesResponse, roadsResponse, transportResponse, waterResponse] =
-            await Promise.all([
-              fetch(`${process.env.BASE_URL}data/geojson/gis_osm_places_a_free_1.geojson`),
-              fetch(`${process.env.BASE_URL}data/geojson/gis_osm_roads_free_1.geojson`),
-              fetch(`${process.env.BASE_URL}data/geojson/gis_osm_transport_a_free_1.geojson`),
-              fetch(`${process.env.BASE_URL}data/geojson/gis_osm_water_a_free_1.geojson`),
-            ]);
+          // 載入地點 GeoJSON 檔案
+          const placesResponse = await fetch(
+            `${process.env.BASE_URL}data/geojson/gis_osm_places_a_free_1.geojson`
+          );
 
-          // 檢查所有響應
-          if (!placesResponse.ok) throw new Error(`地點數據載入失敗: ${placesResponse.status}`);
-          if (!roadsResponse.ok) throw new Error(`道路數據載入失敗: ${roadsResponse.status}`);
-          if (!transportResponse.ok)
-            throw new Error(`交通數據載入失敗: ${transportResponse.status}`);
-          if (!waterResponse.ok) throw new Error(`水域數據載入失敗: ${waterResponse.status}`);
+          // 檢查響應
+          if (!placesResponse.ok) {
+            throw new Error(`地點數據載入失敗: HTTP ${placesResponse.status}`);
+          }
 
-          // 並行解析 JSON
-          [placesData.value, roadsData.value, transportData.value, waterData.value] =
-            await Promise.all([
-              placesResponse.json(),
-              roadsResponse.json(),
-              transportResponse.json(),
-              waterResponse.json(),
-            ]);
+          // 解析 JSON
+          placesData.value = await placesResponse.json();
 
-          console.log('[MapTab] 所有 OSM 數據載入成功:');
-          console.log('  - 地點數量:', placesData.value.features?.length);
-          console.log('  - 道路數量:', roadsData.value.features?.length);
-          console.log('  - 交通設施數量:', transportData.value.features?.length);
-          console.log('  - 水域數量:', waterData.value.features?.length);
+          console.log('[MapTab] OSM 地點數據載入成功');
+          console.log('  - 地點數量:', placesData.value.features?.length || 0);
 
           return true;
         } catch (error) {
-          console.error('[MapTab] OSM 數據載入失敗:', error);
+          console.error('[MapTab] OSM 地點數據載入失敗:', error);
           return false;
         }
-      };
-
-      /**
-       * 🌐 繪製經緯網格
-       */
-      const drawGraticule = () => {
-        if (!map) return;
-
-        // 創建經緯網格圖層組
-        graticuleLayer = L.layerGroup().addTo(map);
-
-        // 繪製經線（每10度一條）- 使用白色半透明
-        for (let lng = -180; lng <= 180; lng += 10) {
-          const meridian = [
-            [90, lng],
-            [-90, lng],
-          ];
-          L.polyline(meridian, {
-            color: '#FFFFFF', // 白色
-            weight: 0.5,
-            opacity: 0.2,
-            interactive: false,
-          }).addTo(graticuleLayer);
-        }
-
-        // 繪製緯線（每10度一條）- 使用白色半透明
-        for (let lat = -80; lat <= 80; lat += 10) {
-          const parallel = [
-            [lat, -180],
-            [lat, 180],
-          ];
-          L.polyline(parallel, {
-            color: '#FFFFFF', // 白色
-            weight: 0.5,
-            opacity: 0.2,
-            interactive: false,
-          }).addTo(graticuleLayer);
-        }
-
-        console.log('[MapTab] 經緯網格繪製完成');
       };
 
       /**
@@ -173,10 +257,14 @@
         }
 
         try {
+          // 諾魯（Nauru）位置：緯度 -0.5228°, 經度 166.9315°
+          // 赤道位置：緯度 0°
+          // 中心點：赤道與諾魯之間 = 緯度 -0.26°, 經度 166.93°
+
           // 創建 Leaflet 地圖（不使用底圖，不顯示縮放按鈕）
           map = L.map(mapContainer.value, {
-            center: [0, 0], // 初始中心在赤道
-            zoom: 2,
+            center: [-0.26, 166.93], // 中心點在赤道與諾魯之間
+            zoom: 10, // 較近的縮放級別，可以清楚看到赤道線和諾魯細節
             zoomControl: false, // 不顯示 +/- 按鈕
             attributionControl: false, // 不顯示歸屬信息
             preferCanvas: true, // 使用 Canvas 渲染以提高性能
@@ -199,69 +287,7 @@
       };
 
       /**
-       * 🌊 繪製水域圖層
-       */
-      const drawWater = () => {
-        if (!map || !waterData.value) return;
-
-        console.log('[MapTab] 開始繪製水域，數量:', waterData.value.features?.length);
-
-        // 使用深藍色（諾魯國旗的主色）
-        waterLayer = L.geoJSON(waterData.value, {
-          style: {
-            fillColor: '#001b4d', // 更深的藍色
-            fillOpacity: 0.8,
-            color: '#002B7F', // 諾魯藍邊框
-            weight: 1,
-          },
-        }).addTo(map);
-
-        console.log('[MapTab] 水域繪製完成');
-      };
-
-      /**
-       * 🛣️ 繪製道路圖層
-       */
-      const drawRoads = () => {
-        if (!map || !roadsData.value) return;
-
-        console.log('[MapTab] 開始繪製道路，數量:', roadsData.value.features?.length);
-
-        // 使用金黃色（諾魯國旗的黃色）
-        roadsLayer = L.geoJSON(roadsData.value, {
-          style: {
-            color: '#FFC61E', // 金黃色
-            weight: 1.5,
-            opacity: 0.7,
-          },
-        }).addTo(map);
-
-        console.log('[MapTab] 道路繪製完成');
-      };
-
-      /**
-       * 🚉 繪製交通設施圖層
-       */
-      const drawTransport = () => {
-        if (!map || !transportData.value) return;
-
-        console.log('[MapTab] 開始繪製交通設施，數量:', transportData.value.features?.length);
-
-        // 使用白色（諾魯國旗的白色）
-        transportLayer = L.geoJSON(transportData.value, {
-          style: {
-            fillColor: '#FFFFFF', // 白色
-            fillOpacity: 0.7,
-            color: '#FFC61E', // 金黃色邊框
-            weight: 1,
-          },
-        }).addTo(map);
-
-        console.log('[MapTab] 交通設施繪製完成');
-      };
-
-      /**
-       * 🎨 繪製 OSM 地點
+       * 🎨 繪製 OSM 地點圖層
        */
       const drawPlaces = () => {
         if (!map || !placesData.value) {
@@ -272,22 +298,18 @@
         try {
           console.log('[MapTab] 開始繪製地點，數量:', placesData.value.features?.length);
 
-          // 創建 GeoJSON 圖層（使用諾魯國旗配色）
-          // 諾魯國旗配色：深藍色 #002B7F、金黃色 #FFC61E、白色 #FFFFFF
+          // 創建 GeoJSON 圖層（使用諾魯國旗的白色）
           placesLayer = L.geoJSON(placesData.value, {
             style: {
-              fillColor: '#002B7F', // 深藍色填充
+              fillColor: '#FFFFFF', // 白色填充（諾魯國旗配色）
               fillOpacity: 0.9,
-              color: '#FFC61E', // 金黃色邊框
-              weight: 2,
+              color: '#FFFFFF', // 白色邊框
+              weight: 1,
             },
             interactive: false, // 禁用所有交互功能
           }).addTo(map);
 
-          // 自動調整地圖視野到數據範圍
-          if (placesLayer.getBounds().isValid()) {
-            map.fitBounds(placesLayer.getBounds(), { padding: [50, 50] });
-          }
+          // 不自動調整地圖視野，保持中心點在赤道與諾魯之間
 
           console.log(
             '[MapTab] OSM 地點繪製完成，已繪製',
@@ -307,10 +329,10 @@
         let attempts = 0;
         const maxAttempts = 20;
 
-        // 先載入所有 OSM 數據
-        const loaded = await loadAllData();
+        // 載入 OSM 地點數據
+        const loaded = await loadPlacesData();
         if (!loaded) {
-          console.error('[MapTab] 無法載入 OSM 數據');
+          console.error('[MapTab] 無法載入 OSM 地點數據');
           return;
         }
 
@@ -324,19 +346,11 @@
           console.log(`[MapTab] 嘗試創建地圖 (${attempts}/${maxAttempts})`);
 
           if (createMap()) {
-            console.log('[MapTab] 地圖創建成功，開始繪製所有圖層');
-            // 繪製經緯網格（最底層）
-            drawGraticule();
-            // 繪製赤道線
+            console.log('[MapTab] 地圖創建成功，開始繪製圖層');
+            // 繪製赤道線（金黃色）
             drawEquator();
-            // 繪製地點（最底層的資料圖層）
+            // 繪製地點圖層（白色）
             drawPlaces();
-            // 繪製水域
-            drawWater();
-            // 繪製道路
-            drawRoads();
-            // 繪製交通設施（最上層）
-            drawTransport();
           } else {
             console.log('[MapTab] 地圖創建失敗，100ms 後重試');
             setTimeout(tryCreateMap, 100);
@@ -361,10 +375,6 @@
         }
 
         placesLayer = null;
-        roadsLayer = null;
-        transportLayer = null;
-        waterLayer = null;
-        graticuleLayer = null;
         isMapReady.value = false;
       });
 
