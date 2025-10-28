@@ -1,74 +1,48 @@
 <script>
   /**
    * ═══════════════════════════════════════════════════════════════════════════
-   * 🗺️ MapTab.vue - Leaflet OSM 多圖層地圖組件
+   * 🗺️ MapTab.vue - D3.js 台灣縣市地圖組件
    * ═══════════════════════════════════════════════════════════════════════════
    *
    * @fileoverview
-   * 這是一個基於 Leaflet 的多圖層地圖視覺化組件，使用 OpenStreetMap 數據和諾魯國旗配色主題。
-   * 本組件負責載入、處理和渲染四種不同的地理數據圖層，並提供流暢的地圖交互體驗。
+   * 這是一個基於 D3.js 的台灣縣市地圖視覺化組件。
+   * 本組件負責載入、處理和渲染台灣縣市邊界的 GeoJSON 數據。
    *
    * ─────────────────────────────────────────────────────────────────────────
    * 📋 核心功能
    * ─────────────────────────────────────────────────────────────────────────
-   * 1. 多圖層渲染：
-   *    ✓ 地點圖層 (Places)：行政區劃、城市、村莊
-   *    ✓ 水域圖層 (Water)：湖泊、河流、海洋
-   *    ✓ 道路圖層 (Roads)：道路網絡
-   *    ✓ 交通設施圖層 (Transport)：機場、港口、車站
+   * 1. 縣市邊界渲染：
+   *    ✓ 載入 COUNTY_MOI_1140318.geojson
+   *    ✓ 繪製所有台灣縣市邊界
    *
    * 2. 視覺元素：
-   *    ✓ 經緯網格系統（每 10° 一條）
-   *    ✓ 赤道線標示（金黃色，呼應諾魯國旗）
-   *    ✓ 諾魯國旗配色主題（深藍、金黃、白色）
+   *    ✓ 白色填充的縣市區域
+   *    ✓ 黑色縣市邊界線
+   *    ✓ 灰色地圖背景
    *
    * 3. 交互功能：
    *    ✓ 滾輪縮放控制
    *    ✓ 拖動平移導航
-   *    ✓ 觸控設備支持
-   *    ✗ 禁用懸停效果（專注靜態呈現）
-   *    ✗ 禁用彈出窗口（簡化交互）
-   *
-   * 4. 性能優化：
-   *    ✓ 並行載入所有 GeoJSON 數據
-   *    ✓ Canvas 渲染模式（preferCanvas: true）
-   *    ✓ 非交互圖層設置（interactive: false）
    *
    * ─────────────────────────────────────────────────────────────────────────
-   * 🎨 配色主題：諾魯國旗
+   * 🎨 配色主題
    * ─────────────────────────────────────────────────────────────────────────
-   * 諾魯深藍  #002B7F  → 地點填充色、水域邊框
-   * 背景深藍  #001b4d  → 地圖背景、水域填充
-   * 金黃色    #FFC61E  → 赤道線、道路、邊框
-   * 白色      #FFFFFF  → 經緯網格、交通設施
-   *
-   * 選擇諾魯配色的原因：
-   * - 諾魯是世界最小島國之一，與 OSM 細節呈現理念呼應
-   * - 諾魯位於赤道附近，國旗黃色橫條正代表赤道
-   * - 作為太平洋島國，配色與海洋主題完美契合
-   *
-   * ─────────────────────────────────────────────────────────────────────────
-   * 📊 圖層渲染順序（由下至上）
-   * ─────────────────────────────────────────────────────────────────────────
-   * Layer 0: 經緯網格 (Graticule)         - 白色半透明參考線
-   * Layer 1: 赤道線 (Equator)            - 金黃色強調線
-   * Layer 2: 地點 (Places)               - 諾魯藍多邊形（底層）
-   * Layer 3: 水域 (Water)                - 深藍色水體
-   * Layer 4: 道路 (Roads)                - 金黃色線條
-   * Layer 5: 交通設施 (Transport)        - 白色多邊形（頂層）
+   * 灰色      #808080  → 地圖背景
+   * 黑色      #000000  → 縣市邊框
+   * 白色      #FFFFFF  → 縣市填充
    *
    * ─────────────────────────────────────────────────────────────────────────
    * 🛠️ 技術棧
    * ─────────────────────────────────────────────────────────────────────────
    * @requires vue                 - Vue 3.2+ (Composition API)
-   * @requires leaflet             - Leaflet 1.9+ (地圖渲染庫)
+   * @requires d3                  - D3.js 7.8+ (地圖繪製庫)
    * @requires @/stores/dataStore  - Pinia 狀態管理
    *
    * ─────────────────────────────────────────────────────────────────────────
    * 📁 數據來源
    * ─────────────────────────────────────────────────────────────────────────
-   * 所有 GeoJSON 數據來自 OpenStreetMap (ODbL License)
-   * 路徑：public/data/geojson/*.geojson
+   * 縣市邊界數據：COUNTY_MOI_1140318.geojson
+   * 路徑：public/data/geojson/COUNTY_MOI_1140318.geojson
    *
    * ─────────────────────────────────────────────────────────────────────────
    * 🔧 使用方式
@@ -81,7 +55,7 @@
    * 📝 維護者
    * ─────────────────────────────────────────────────────────────────────────
    * @author Kevin Cheng
-   * @version 2.0.0
+   * @version 3.0.0
    * @since 2024
    * @license MIT
    *
@@ -196,68 +170,70 @@
       // ═══════════════════════════════════════════════════════════════════════
 
       /**
-       * 地點 GeoJSON 數據
-       * 來源：gis_osm_places_a_free_1.geojson
+       * 縣市 GeoJSON 數據
+       * 來源：COUNTY_MOI_1140318.geojson
        * @type {Ref<Object|null>}
        */
-      const placesData = ref(null);
+      const countyData = ref(null);
 
       /**
-       * 📥 載入 OSM 地點 GeoJSON 數據
+       * 📥 載入台灣縣市 GeoJSON 數據
        */
-      const loadPlacesData = async () => {
+      const loadCountyData = async () => {
         try {
-          console.log('[MapTab] 開始載入 OSM 地點 GeoJSON 數據...');
+          console.log('[MapTab] 開始載入台灣縣市 GeoJSON 數據...');
 
-          // 載入地點 GeoJSON 檔案
-          const placesResponse = await fetch(
-            `${process.env.BASE_URL}data/geojson/gis_osm_places_a_free_1.geojson`
+          // 載入縣市 GeoJSON 檔案
+          const countyResponse = await fetch(
+            `${process.env.BASE_URL}data/geojson/COUNTY_MOI_1140318.geojson`
           );
 
           // 檢查響應
-          if (!placesResponse.ok) {
-            throw new Error(`地點數據載入失敗: HTTP ${placesResponse.status}`);
+          if (!countyResponse.ok) {
+            throw new Error(`縣市數據載入失敗: HTTP ${countyResponse.status}`);
           }
 
           // 解析 JSON
-          placesData.value = await placesResponse.json();
+          countyData.value = await countyResponse.json();
 
-          console.log('[MapTab] OSM 地點數據載入成功');
-          console.log('  - 地點數量:', placesData.value.features?.length || 0);
+          console.log('[MapTab] 台灣縣市數據載入成功');
+          console.log('  - 縣市數量:', countyData.value.features?.length || 0);
 
           return true;
         } catch (error) {
-          console.error('[MapTab] OSM 地點數據載入失敗:', error);
+          console.error('[MapTab] 台灣縣市數據載入失敗:', error);
           return false;
         }
       };
 
       /**
-       * 🌍 繪製赤道線
+       * 🗺️ 繪製台灣縣市
        */
-      const drawEquator = () => {
-        if (!g || !path) return;
+      const drawCounties = () => {
+        if (!g || !countyData.value) {
+          console.error('[MapTab] 無法繪製縣市: g=', !!g, 'countyData=', !!countyData.value);
+          return;
+        }
 
-        // 創建赤道線（緯度 0°）- 使用諾魯國旗的金黃色
-        // 諾魯國旗上的黃色橫條代表赤道
-        const equatorGeoJSON = {
-          type: 'LineString',
-          coordinates: [
-            [-180, 0],
-            [180, 0],
-          ],
-        };
+        try {
+          console.log('[MapTab] 開始繪製台灣縣市 GeoJSON');
 
-        g.append('path')
-          .datum(equatorGeoJSON)
-          .attr('d', path)
-          .attr('class', 'equator-line')
-          .attr('fill', 'none')
-          .attr('stroke', '#FFC61E') // 金黃色
-          .attr('stroke-width', 3) // 赤道線粗細
-          .style('opacity', 1);
+          // 繪製所有縣市
+          g.selectAll('.county')
+            .data(countyData.value.features)
+            .enter()
+            .append('path')
+            .attr('d', path)
+            .attr('class', 'county')
+            .attr('fill', '#FFFFFF') // 白色填充
+            .attr('fill-opacity', 0.8)
+            .attr('stroke', '#000000') // 黑色邊框
+            .attr('stroke-width', 1.5);
 
-        console.log('[MapTab] 赤道線繪製完成');
+          console.log('[MapTab] 台灣縣市 GeoJSON 繪製完成');
+        } catch (error) {
+          console.error('[MapTab] 台灣縣市 GeoJSON 繪製失敗:', error);
+        }
       };
 
       /**
@@ -277,9 +253,7 @@
           const width = rect.width;
           const height = rect.height;
 
-          // 諾魯（Nauru）位置：緯度 -0.5228°, 經度 166.9315°
-          // 赤道位置：緯度 0°
-          // 中心點：赤道與諾魯之間 = 緯度 -0.26°, 經度 166.93°
+          // 台灣中心位置：緯度 23.5°, 經度 121°
 
           // 創建 SVG 元素
           svg = d3
@@ -287,13 +261,13 @@
             .append('svg')
             .attr('width', width)
             .attr('height', height)
-            .style('background', '#001b4d'); // 深藍色背景
+            .style('background', '#808080'); // 灰色背景
 
-          // 創建投影 - 麥卡托投影，聚焦在諾魯區域
+          // 創建投影 - 麥卡托投影，聚焦在台灣
           projection = d3
             .geoMercator()
-            .center([166.93, -0.26]) // 中心點在赤道與諾魯之間
-            .scale(300) // 較小的縮放比例，讓赤道和諾魯都清晰可見
+            .center([121, 23.5]) // 中心點在台灣
+            .scale(6000) // 較大的縮放比例，聚焦在台灣
             .translate([width / 2, height / 2]);
 
           // 創建路徑生成器
@@ -326,44 +300,6 @@
       };
 
       /**
-       * 🎨 繪製諾魯 GeoJSON
-       */
-      const drawNauru = () => {
-        if (!g || !placesData.value) {
-          console.error('[MapTab] 無法繪製諾魯: g=', !!g, 'placesData=', !!placesData.value);
-          return;
-        }
-
-        try {
-          // 過濾出諾魯（Naoero）的數據
-          const nauruFeature = placesData.value.features.find(
-            (feature) => feature.properties.name === 'Naoero'
-          );
-
-          if (!nauruFeature) {
-            console.error('[MapTab] 找不到諾魯（Naoero）數據');
-            return;
-          }
-
-          console.log('[MapTab] 開始繪製諾魯 GeoJSON');
-
-          // 使用 D3.js 繪製諾魯島嶼多邊形
-          g.append('path')
-            .datum(nauruFeature)
-            .attr('d', path)
-            .attr('class', 'nauru')
-            .attr('fill', '#FFFFFF') // 白色填充（諾魯國旗配色）
-            .attr('fill-opacity', 0.9)
-            .attr('stroke', '#FFC61E') // 金黃色邊框
-            .attr('stroke-width', 1);
-
-          console.log('[MapTab] 諾魯 GeoJSON 繪製完成');
-        } catch (error) {
-          console.error('[MapTab] 諾魯 GeoJSON 繪製失敗:', error);
-        }
-      };
-
-      /**
        * 🚀 初始化地圖
        * 創建地圖並載入初始數據
        */
@@ -371,10 +307,10 @@
         let attempts = 0;
         const maxAttempts = 20;
 
-        // 載入 OSM 地點數據
-        const loaded = await loadPlacesData();
+        // 載入台灣縣市數據
+        const loaded = await loadCountyData();
         if (!loaded) {
-          console.error('[MapTab] 無法載入 OSM 地點數據');
+          console.error('[MapTab] 無法載入台灣縣市數據');
           return;
         }
 
@@ -389,10 +325,8 @@
 
           if (createMap()) {
             console.log('[MapTab] 地圖創建成功，開始繪製圖層');
-            // 繪製赤道線（金黃色）
-            drawEquator();
-            // 繪製諾魯 GeoJSON（白色多邊形）
-            drawNauru();
+            // 繪製台灣縣市
+            drawCounties();
           } else {
             console.log('[MapTab] 地圖創建失敗，100ms 後重試');
             setTimeout(tryCreateMap, 100);
@@ -448,7 +382,7 @@
   }
 
   :deep(.leaflet-container) {
-    background: #001b4d; /* 深藍色背景（諾魯國旗主題） */
+    background: #808080; /* 灰色背景 */
   }
 
   :deep(.leaflet-popup-content-wrapper) {
