@@ -1,32 +1,29 @@
 <script>
   /**
-   * 🗺️ MapTab.vue - D3.js 世界地圖組件 (D3.js World Map Component)
+   * 🗺️ MapTab.vue - D3.js OSM 地點地圖組件 (D3.js OSM Places Map Component)
    *
-   * 使用 D3.js 繪製世界地圖，專為世界城市地圖展示設計。
+   * 使用 D3.js 繪製 OpenStreetMap 地點資料。
    * 主要功能：
-   * - 使用 D3.js 顯示世界地圖
-   * - 提供城市導航功能
+   * - 使用 D3.js 顯示 OSM 地點多邊形
+   * - 自動縮放到地點範圍
    * - 使用麥卡托投影 (Mercator Projection)
    * - 響應式設計
+   * - 地點資訊提示
    *
    * 技術架構：
    * - Vue 3 Composition API
    * - D3.js 地圖繪製
-   * - Pinia 狀態管理
+   * - GeoJSON 資料格式
    * - Bootstrap 5 樣式
    */
 
   import { ref, onMounted, onUnmounted, nextTick } from 'vue';
   import * as d3 from 'd3';
-  import { useDataStore } from '@/stores/dataStore.js';
 
   export default {
     name: 'MapTab',
     emits: ['map-ready'],
     setup(_, { emit }) {
-      // 📦 存儲實例
-      const dataStore = useDataStore();
-
       // 🗺️ 地圖相關變數
       const mapContainer = ref(null);
       let svg = null;
@@ -52,14 +49,14 @@
       const worldData = ref(null);
 
       /**
-       * 📥 載入世界地圖數據
+       * 📥 載入 OSM 地點數據
        */
       const loadWorldData = async () => {
         try {
-          // 使用本地的 GeoJSON 檔案
-          console.log('[MapTab] 開始載入 GeoJSON 數據...');
+          // 載入 OSM 地點 GeoJSON 檔案
+          console.log('[MapTab] 開始載入 OSM 地點 GeoJSON 數據...');
           const response = await fetch(
-            `${process.env.BASE_URL}data/ne_110m_admin_0_countries.geojson`
+            `${process.env.BASE_URL}data/geojson/gis_osm_places_a_free_1.geojson`
           );
 
           if (!response.ok) {
@@ -68,10 +65,10 @@
 
           const data = await response.json();
           worldData.value = data;
-          console.log('[MapTab] 世界地圖數據載入成功，特徵數量:', data.features?.length);
+          console.log('[MapTab] OSM 地點數據載入成功，特徵數量:', data.features?.length);
           return true;
         } catch (error) {
-          console.error('[MapTab] 世界地圖數據載入失敗:', error);
+          console.error('[MapTab] OSM 地點數據載入失敗:', error);
           return false;
         }
       };
@@ -113,36 +110,8 @@
             .style('z-index', '10');
 
           // 創建投影 - 使用麥卡托投影 (Mercator Projection)
-          // 限制顯示範圍到北緯75度、南緯65度
-          const northLatLimit = 75; // 北緯限制
-          const southLatLimit = -65; // 南緯限制
-
-          // 創建限制範圍的 GeoJSON（北緯75度、南緯65度）
-          const limitedBounds = {
-            type: 'FeatureCollection',
-            features: [
-              {
-                type: 'Feature',
-                geometry: {
-                  type: 'Polygon',
-                  coordinates: [
-                    [
-                      [-180, southLatLimit],
-                      [180, southLatLimit],
-                      [180, northLatLimit],
-                      [-180, northLatLimit],
-                      [-180, southLatLimit],
-                    ],
-                  ],
-                },
-              },
-            ],
-          };
-
-          projection = d3
-            .geoMercator()
-            .center([0, 0]) // 以旋轉後的中央經線與赤道交點為中心
-            .fitSize([width, height], limitedBounds); // 使用限制範圍進行縮放
+          // 自動縮放到 GeoJSON 數據的範圍
+          projection = d3.geoMercator().fitSize([width, height], worldData.value); // 自動適應數據範圍
 
           // 創建路徑生成器
           path = d3.geoPath().projection(projection);
@@ -150,13 +119,15 @@
           // 創建容器組
           g = svg.append('g');
 
-          // 設置縮放行為（禁用所有互動）
+          // 設置縮放行為（啟用縮放和平移）
           zoom = d3
             .zoom()
-            .scaleExtent([1, 1]) // 禁用縮放
-            .on('zoom', null); // 禁用縮放事件
+            .scaleExtent([1, 20]) // 允許縮放 1x 到 20x
+            .on('zoom', (event) => {
+              g.attr('transform', event.transform);
+            });
 
-          svg.call(zoom).on('wheel.zoom', null).on('dblclick.zoom', null);
+          svg.call(zoom);
 
           isMapReady.value = true;
 
@@ -178,7 +149,52 @@
       };
 
       /**
-       * 🎨 繪製世界地圖
+       * 🌍 繪製經緯網格和赤道線
+       */
+      const drawGraticule = () => {
+        if (!g || !path) return;
+
+        // 創建經緯網格生成器
+        const graticule = d3.geoGraticule();
+
+        // 繪製經緯網格（淺色背景線）
+        g.insert('path', ':first-child')
+          .datum(graticule)
+          .attr('class', 'graticule')
+          .attr('d', path)
+          .attr('fill', 'none')
+          .attr('stroke', '#444')
+          .attr('stroke-width', 0.5)
+          .style('opacity', 0.3);
+
+        // 創建赤道線的 GeoJSON 數據（緯度 0°）
+        // 使用更多點來確保線條平滑
+        const equatorCoordinates = [];
+        for (let lon = -180; lon <= 180; lon += 1) {
+          equatorCoordinates.push([lon, 0]);
+        }
+
+        const equatorGeoJSON = {
+          type: 'LineString',
+          coordinates: equatorCoordinates,
+        };
+
+        // 繪製赤道線（顯眼的紅色）
+        g.append('path')
+          .datum(equatorGeoJSON)
+          .attr('d', path)
+          .attr('class', 'equator-line')
+          .attr('fill', 'none')
+          .attr('stroke', '#FF4444') // 紅色
+          .attr('stroke-width', 3)
+          .attr('stroke-dasharray', '10,5') // 虛線效果
+          .style('opacity', 1);
+
+        console.log('[MapTab] 經緯網格和赤道線繪製完成');
+      };
+
+      /**
+       * 🎨 繪製 OSM 地點
        */
       const drawWorldMap = async () => {
         if (!g || !worldData.value) {
@@ -187,34 +203,34 @@
         }
 
         try {
-          // 直接使用 GeoJSON 數據（無需轉換）
-          const countries = worldData.value;
-          console.log('[MapTab] 開始繪製地圖，國家數量:', countries.features?.length);
+          // 使用 OSM 地點 GeoJSON 數據
+          const places = worldData.value;
+          console.log('[MapTab] 開始繪製地點，數量:', places.features?.length);
 
-          // 繪製國家邊界
-          const countryPaths = g
-            .selectAll('path')
-            .data(countries.features)
+          // 繪製地點多邊形
+          const placePaths = g
+            .selectAll('path.place')
+            .data(places.features)
             .enter()
             .append('path')
             .attr('d', path)
-            .attr('fill', (d) => {
-              // 檢查國家顏色：邦交國使用黃色，其他國家使用深灰色
-              // 嚴格使用 GeoJSON 提供的正式名稱（優先 NAME）
-              const countryName = d.properties?.NAME || d.properties?.ADMIN || d.properties?.name;
-              if (dataStore.isAlliedCountry(countryName)) return colors.participant;
-              return colors.other;
-            })
-            .attr('stroke', 'none')
-            .attr('class', 'country')
-            .style('cursor', 'pointer');
+            .attr('fill', '#4CAF50') // 綠色
+            .attr('stroke', '#2E7D32') // 深綠色邊框
+            .attr('stroke-width', 1)
+            .attr('class', 'place')
+            .style('cursor', 'pointer')
+            .style('opacity', 0.8);
 
-          // 滑鼠事件：顯示國名 tooltip
-          countryPaths
+          // 滑鼠事件：顯示地點名稱 tooltip
+          placePaths
             .on('mouseover', (event, d) => {
-              const countryName = d.properties?.NAME || d.properties?.ADMIN || d.properties?.name;
+              d3.select(event.currentTarget).style('opacity', 1);
+              const placeName = d.properties?.name || d.properties?.fclass || 'Unknown';
+              const placeType = d.properties?.fclass || '';
               if (tooltipDiv) {
-                tooltipDiv.style('visibility', 'visible').text(countryName || 'Unknown');
+                tooltipDiv
+                  .style('visibility', 'visible')
+                  .html(`<strong>${placeName}</strong><br/>${placeType}`);
               }
             })
             .on('mousemove', (event) => {
@@ -223,71 +239,16 @@
                 tooltipDiv.style('left', `${x + 12}px`).style('top', `${y + 12}px`);
               }
             })
-            .on('mouseout', () => {
+            .on('mouseout', (event) => {
+              d3.select(event.currentTarget).style('opacity', 0.8);
               if (tooltipDiv) {
                 tooltipDiv.style('visibility', 'hidden');
               }
             });
 
-          console.log('[MapTab] 世界地圖繪製完成，已繪製', countries.features?.length, '個國家');
+          console.log('[MapTab] OSM 地點繪製完成，已繪製', places.features?.length, '個地點');
         } catch (error) {
-          console.error('[MapTab] 世界地圖繪製失敗:', error);
-        }
-      };
-
-      /**
-       * 🔴 繪製微型國家圓圈標記
-       * 為那些在低解析度地圖中不存在的微型國家繪製圓圈
-       * 參展：淡藍色 / 未造訪：灰色
-       */
-      const drawMicroStates = () => {
-        if (!g || !projection) {
-          console.error('[MapTab] 無法繪製微型國家: g=', !!g, 'projection=', !!projection);
-          return;
-        }
-
-        try {
-          console.log('[MapTab] 開始繪製微型國家圓圈，總數量:', dataStore.microStates.length);
-
-          // 繪製所有微型國家的圓圈標記
-          const microMarkers = g
-            .selectAll('.micro-state-marker')
-            .data(dataStore.microStates)
-            .enter()
-            .append('circle')
-            .attr('class', 'micro-state-marker')
-            .attr('cx', (d) => projection(d.coordinates)[0])
-            .attr('cy', (d) => projection(d.coordinates)[1])
-            .attr('r', 3) // 圓圈半徑
-            .attr('fill', (d) => {
-              // 檢查微型國家顏色：邦交國使用黃色，其他國家使用深灰色
-              if (dataStore.isAlliedCountry(d.name)) return colors.participant;
-              return colors.other;
-            })
-            .attr('stroke', 'none')
-            .style('cursor', 'pointer');
-
-          microMarkers
-            .on('mouseover', (event, d) => {
-              if (tooltipDiv) {
-                tooltipDiv.style('visibility', 'visible').text(d.name);
-              }
-            })
-            .on('mousemove', (event) => {
-              if (tooltipDiv) {
-                const [x, y] = d3.pointer(event, mapContainer.value);
-                tooltipDiv.style('left', `${x + 12}px`).style('top', `${y + 12}px`);
-              }
-            })
-            .on('mouseout', () => {
-              if (tooltipDiv) {
-                tooltipDiv.style('visibility', 'hidden');
-              }
-            });
-
-          console.log('[MapTab] 微型國家圓圈繪製完成');
-        } catch (error) {
-          console.error('[MapTab] 微型國家圓圈繪製失敗:', error);
+          console.error('[MapTab] OSM 地點繪製失敗:', error);
         }
       };
 
@@ -304,38 +265,15 @@
 
         svg.attr('width', width).attr('height', height);
 
-        // 自動調整投影以適應新的容器尺寸（限制到北緯75度、南緯65度）
-        const northLatLimit = 75; // 北緯限制
-        const southLatLimit = -60; // 南緯限制
-        const limitedBounds = {
-          type: 'FeatureCollection',
-          features: [
-            {
-              type: 'Feature',
-              geometry: {
-                type: 'Polygon',
-                coordinates: [
-                  [
-                    [-180, southLatLimit],
-                    [180, southLatLimit],
-                    [180, northLatLimit],
-                    [-180, northLatLimit],
-                    [-180, southLatLimit],
-                  ],
-                ],
-              },
-            },
-          ],
-        };
-        projection.fitSize([width, height], limitedBounds);
+        // 自動調整投影以適應 GeoJSON 數據範圍
+        projection.fitSize([width, height], worldData.value);
 
         // 更新所有路徑
-        g.selectAll('path.country').attr('d', path);
+        g.selectAll('path.place').attr('d', path);
 
-        // 清除舊的微型國家圓圈
-        g.selectAll('.micro-state-marker').remove();
-        // 重新繪製微型國家圓圈標記
-        drawMicroStates();
+        // 更新經緯網格和赤道線
+        g.selectAll('path.graticule').attr('d', path);
+        g.selectAll('path.equator-line').attr('d', path);
 
         console.log('[MapTab] 地圖尺寸更新完成');
       };
@@ -348,10 +286,10 @@
         let attempts = 0;
         const maxAttempts = 20;
 
-        // 先載入世界地圖數據
+        // 先載入 OSM 地點數據
         const loaded = await loadWorldData();
         if (!loaded) {
-          console.error('[MapTab] 無法載入世界地圖數據');
+          console.error('[MapTab] 無法載入 OSM 地點數據');
           return;
         }
 
@@ -365,10 +303,11 @@
           console.log(`[MapTab] 嘗試創建地圖 (${attempts}/${maxAttempts})`);
 
           if (createMap()) {
-            console.log('[MapTab] 地圖創建成功，開始繪製世界地圖');
+            console.log('[MapTab] 地圖創建成功，開始繪製經緯網格和 OSM 地點');
+            // 先繪製經緯網格和赤道線
+            drawGraticule();
+            // 再繪製 OSM 地點
             await drawWorldMap();
-            // 繪製微型國家圓圈標記
-            drawMicroStates();
           } else {
             console.log('[MapTab] 地圖創建失敗，100ms 後重試');
             setTimeout(tryCreateMap, 100);
@@ -460,28 +399,30 @@
     overflow: hidden;
   }
 
-  :deep(.country) {
-    transition: filter 0.2s ease;
+  :deep(.place) {
+    transition:
+      opacity 0.2s ease,
+      filter 0.2s ease;
   }
 
-  :deep(.country:hover) {
-    filter: brightness(1.2);
+  :deep(.place:hover) {
+    filter: brightness(1.1);
   }
 
-  :deep(.city-marker) {
-    transition: r 0.2s ease;
+  :deep(.graticule) {
+    pointer-events: none;
   }
 
-  :deep(.city-marker:hover) {
-    r: 6;
+  :deep(.equator-line) {
+    pointer-events: none;
   }
 
-  /* 微型國家圓圈標記樣式 */
-  :deep(.micro-state-marker) {
-    transition: all 0.2s ease;
-  }
-
-  :deep(.micro-state-marker:hover) {
-    filter: brightness(1.2);
+  :deep(.map-tooltip) {
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 1.4;
   }
 </style>
