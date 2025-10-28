@@ -5,15 +5,15 @@
    * ═══════════════════════════════════════════════════════════════════════════
    *
    * @fileoverview
-   * 這是一個基於 D3.js 的台灣縣市地圖視覺化組件。
-   * 本組件負責載入、處理和渲染台灣縣市邊界的 GeoJSON 數據。
+   * 這是一個基於 D3.js 的台灣直轄市、縣(市)界線地圖視覺化組件。
+   * 本組件負責載入、處理和渲染台灣直轄市、縣(市)界線的 GeoJSON 數據。
    *
    * ─────────────────────────────────────────────────────────────────────────
    * 📋 核心功能
    * ─────────────────────────────────────────────────────────────────────────
    * 1. 縣市邊界渲染：
-   *    ✓ 載入 COUNTY_MOI_1140318.geojson
-   *    ✓ 繪製所有台灣縣市邊界
+   *    ✓ 載入直轄市、縣(市)界線1140318.geojson
+   *    ✓ 繪製所有台灣直轄市、縣(市)界線
    *
    * 2. 視覺元素：
    *    ✓ 白色填充的縣市區域
@@ -41,7 +41,7 @@
    * ─────────────────────────────────────────────────────────────────────────
    * 📁 數據來源
    * ─────────────────────────────────────────────────────────────────────────
-   * 縣市邊界數據：COUNTY_MOI_1140318.geojson
+   * 直轄市、縣(市)界線：直轄市、縣(市)界線1140318.geojson
    * 路徑：public/data/geojson/COUNTY_MOI_1140318.geojson
    *
    * ─────────────────────────────────────────────────────────────────────────
@@ -171,17 +171,17 @@
 
       /**
        * 縣市 GeoJSON 數據
-       * 來源：COUNTY_MOI_1140318.geojson
+       * 來源：直轄市、縣(市)界線1140318.geojson
        * @type {Ref<Object|null>}
        */
       const countyData = ref(null);
 
       /**
-       * 📥 載入台灣縣市 GeoJSON 數據
+       * 📥 載入直轄市、縣(市)界線 GeoJSON 數據
        */
       const loadCountyData = async () => {
         try {
-          console.log('[MapTab] 開始載入台灣縣市 GeoJSON 數據...');
+          console.log('[MapTab] 開始載入直轄市、縣(市)界線 GeoJSON 數據...');
 
           // 載入縣市 GeoJSON 檔案
           const countyResponse = await fetch(
@@ -190,33 +190,38 @@
 
           // 檢查響應
           if (!countyResponse.ok) {
-            throw new Error(`縣市數據載入失敗: HTTP ${countyResponse.status}`);
+            throw new Error(`直轄市、縣(市)界線數據載入失敗: HTTP ${countyResponse.status}`);
           }
 
           // 解析 JSON
           countyData.value = await countyResponse.json();
 
-          console.log('[MapTab] 台灣縣市數據載入成功');
+          console.log('[MapTab] 直轄市、縣(市)界線數據載入成功');
           console.log('  - 縣市數量:', countyData.value.features?.length || 0);
 
           return true;
         } catch (error) {
-          console.error('[MapTab] 台灣縣市數據載入失敗:', error);
+          console.error('[MapTab] 直轄市、縣(市)界線數據載入失敗:', error);
           return false;
         }
       };
 
       /**
-       * 🗺️ 繪製台灣縣市
+       * 🗺️ 繪製直轄市、縣(市)界線
        */
       const drawCounties = () => {
         if (!g || !countyData.value) {
-          console.error('[MapTab] 無法繪製縣市: g=', !!g, 'countyData=', !!countyData.value);
+          console.error(
+            '[MapTab] 無法繪製直轄市、縣(市)界線: g=',
+            !!g,
+            'countyData=',
+            !!countyData.value
+          );
           return;
         }
 
         try {
-          console.log('[MapTab] 開始繪製台灣縣市 GeoJSON');
+          console.log('[MapTab] 開始繪製直轄市、縣(市)界線 GeoJSON');
 
           // 繪製所有縣市
           g.selectAll('.county')
@@ -230,9 +235,9 @@
             .attr('stroke', '#000000') // 黑色邊框
             .attr('stroke-width', 1.5);
 
-          console.log('[MapTab] 台灣縣市 GeoJSON 繪製完成');
+          console.log('[MapTab] 直轄市、縣(市)界線 GeoJSON 繪製完成');
         } catch (error) {
-          console.error('[MapTab] 台灣縣市 GeoJSON 繪製失敗:', error);
+          console.error('[MapTab] 直轄市、縣(市)界線 GeoJSON 繪製失敗:', error);
         }
       };
 
@@ -307,10 +312,10 @@
         let attempts = 0;
         const maxAttempts = 20;
 
-        // 載入台灣縣市數據
+        // 載入直轄市、縣(市)界線數據
         const loaded = await loadCountyData();
         if (!loaded) {
-          console.error('[MapTab] 無法載入台灣縣市數據');
+          console.error('[MapTab] 無法載入直轄市、縣(市)界線數據');
           return;
         }
 
@@ -325,7 +330,7 @@
 
           if (createMap()) {
             console.log('[MapTab] 地圖創建成功，開始繪製圖層');
-            // 繪製台灣縣市
+            // 繪製直轄市、縣(市)界線
             drawCounties();
           } else {
             console.log('[MapTab] 地圖創建失敗，100ms 後重試');
