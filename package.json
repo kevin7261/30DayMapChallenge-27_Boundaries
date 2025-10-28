@@ -1,8 +1,8 @@
 {
-  "name": "30DayMapChallenge-14_Data-challenge-OpenStreetMap",
+  "name": "30DayMapChallenge-16_Cell",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://kevin7261.github.io/30DayMapChallenge-14_Data-challenge-OpenStreetMap",
+  "homepage": "https://kevin7261.github.io/30DayMapChallenge-16_Cell",
   "scripts": {
     "serve": "vue-cli-service serve --port 8080",
     "build": "vue-cli-service build",
