@@ -235,7 +235,7 @@
 
         L.polyline(equatorCoords, {
           color: '#FFC61E', // 金黃色（諾魯國旗配色）
-          weight: 4,
+          weight: 8, // 更粗的赤道線
           opacity: 1,
           interactive: false,
         }).addTo(map);
@@ -303,8 +303,7 @@
             style: {
               fillColor: '#FFFFFF', // 白色填充（諾魯國旗配色）
               fillOpacity: 0.9,
-              color: '#FFFFFF', // 白色邊框
-              weight: 1,
+              stroke: false, // 不顯示邊框
             },
             interactive: false, // 禁用所有交互功能
           }).addTo(map);
