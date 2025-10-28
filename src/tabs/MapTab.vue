@@ -235,7 +235,7 @@
 
         L.polyline(equatorCoords, {
           color: '#FFC61E', // 金黃色（諾魯國旗配色）
-          weight: 8, // 更粗的赤道線
+          weight: 32, // 更粗的赤道線
           opacity: 1,
           interactive: false,
         }).addTo(map);
@@ -305,7 +305,25 @@
               fillOpacity: 0.9,
               stroke: false, // 不顯示邊框
             },
-            interactive: false, // 禁用所有交互功能
+            onEachFeature: (feature, layer) => {
+              // 添加懸停效果
+              layer.on({
+                mouseover: (e) => {
+                  const layer = e.target;
+                  layer.setStyle({
+                    fillColor: '#D0D0D0', // 懸停時變成較深的灰白色
+                    fillOpacity: 1,
+                  });
+                },
+                mouseout: (e) => {
+                  const layer = e.target;
+                  layer.setStyle({
+                    fillColor: '#FFFFFF', // 恢復白色
+                    fillOpacity: 0.9,
+                  });
+                },
+              });
+            },
           }).addTo(map);
 
           // 不自動調整地圖視野，保持中心點在赤道與諾魯之間
