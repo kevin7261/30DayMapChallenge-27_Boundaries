@@ -95,9 +95,8 @@
   // Vue 3 核心功能
   import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 
-  // Leaflet 地圖庫及樣式
-  import L from 'leaflet';
-  import 'leaflet/dist/leaflet.css';
+  // D3.js 地圖庫
+  import * as d3 from 'd3';
 
   // Pinia 狀態管理
   import { useDataStore } from '@/stores/dataStore';
@@ -130,10 +129,8 @@
       // 📦 狀態管理與依賴 (State Management & Dependencies)
       // ═══════════════════════════════════════════════════════════════════════
 
-      /**
-       * Pinia 數據存儲實例
-       * 用於存儲和共享地圖實例
-       */
+      // Pinia 數據存儲（保留供未來擴展使用）
+      // eslint-disable-next-line no-unused-vars
       const dataStore = useDataStore();
 
       // ═══════════════════════════════════════════════════════════════════════
@@ -147,19 +144,34 @@
       const mapContainer = ref(null);
 
       /**
-       * Leaflet 地圖實例
-       * 初始化後包含完整的地圖 API
-       * @type {L.Map|null}
+       * D3.js SVG 元素
+       * @type {d3.Selection|null}
        */
-      let map = null;
+      let svg = null;
 
       /**
-       * 地點圖層實例（Places Layer）
-       * 包含行政區劃、城市、村莊等多邊形數據
-       * @type {L.GeoJSON|null}
+       * D3.js 投影函數
+       * @type {d3.GeoProjection|null}
        */
-      // eslint-disable-next-line no-unused-vars
-      let placesLayer = null;
+      let projection = null;
+
+      /**
+       * D3.js 路徑生成器
+       * @type {d3.GeoPath|null}
+       */
+      let path = null;
+
+      /**
+       * D3.js 縮放行為
+       * @type {d3.ZoomBehavior|null}
+       */
+      let zoom = null;
+
+      /**
+       * SVG 主容器組
+       * @type {d3.Selection|null}
+       */
+      let g = null;
 
       // ═══════════════════════════════════════════════════════════════════════
       // 🎛️ 控制狀態 (Control States)
@@ -224,28 +236,33 @@
        * 🌍 繪製赤道線
        */
       const drawEquator = () => {
-        if (!map) return;
+        if (!g || !path) return;
 
         // 創建赤道線（緯度 0°）- 使用諾魯國旗的金黃色
         // 諾魯國旗上的黃色橫條代表赤道
-        const equatorCoords = [
-          [0, -180],
-          [0, 180],
-        ];
+        const equatorGeoJSON = {
+          type: 'LineString',
+          coordinates: [
+            [-180, 0],
+            [180, 0],
+          ],
+        };
 
-        L.polyline(equatorCoords, {
-          color: '#FFC61E', // 金黃色（諾魯國旗配色）
-          weight: 32, // 更粗的赤道線
-          opacity: 1,
-          interactive: false,
-        }).addTo(map);
+        g.append('path')
+          .datum(equatorGeoJSON)
+          .attr('d', path)
+          .attr('class', 'equator-line')
+          .attr('fill', 'none')
+          .attr('stroke', '#FFC61E') // 金黃色
+          .attr('stroke-width', 3) // 赤道線粗細
+          .style('opacity', 1);
 
         console.log('[MapTab] 赤道線繪製完成');
       };
 
       /**
        * 🏗️ 創建地圖實例
-       * 初始化 Leaflet 地圖並設定基本配置
+       * 初始化 D3.js 地圖並設定基本配置
        */
       const createMap = () => {
         if (!mapContainer.value) return false;
@@ -257,84 +274,92 @@
         }
 
         try {
+          const width = rect.width;
+          const height = rect.height;
+
           // 諾魯（Nauru）位置：緯度 -0.5228°, 經度 166.9315°
           // 赤道位置：緯度 0°
           // 中心點：赤道與諾魯之間 = 緯度 -0.26°, 經度 166.93°
 
-          // 創建 Leaflet 地圖（不使用底圖，不顯示縮放按鈕）
-          map = L.map(mapContainer.value, {
-            center: [-0.26, 166.93], // 中心點在赤道與諾魯之間
-            zoom: 10, // 較近的縮放級別，可以清楚看到赤道線和諾魯細節
-            zoomControl: false, // 不顯示 +/- 按鈕
-            attributionControl: false, // 不顯示歸屬信息
-            preferCanvas: true, // 使用 Canvas 渲染以提高性能
-          });
+          // 創建 SVG 元素
+          svg = d3
+            .select(mapContainer.value)
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height)
+            .style('background', '#001b4d'); // 深藍色背景
 
-          // 存儲地圖實例到 store
-          dataStore.setMapInstance(map);
+          // 創建投影 - 麥卡托投影，聚焦在諾魯區域
+          projection = d3
+            .geoMercator()
+            .center([166.93, -0.26]) // 中心點在赤道與諾魯之間
+            .scale(300) // 較小的縮放比例，讓赤道和諾魯都清晰可見
+            .translate([width / 2, height / 2]);
+
+          // 創建路徑生成器
+          path = d3.geoPath().projection(projection);
+
+          // 創建容器組
+          g = svg.append('g');
+
+          // 設置縮放行為
+          zoom = d3
+            .zoom()
+            .scaleExtent([1, 20]) // 允許縮放 1x 到 20x
+            .on('zoom', (event) => {
+              g.attr('transform', event.transform);
+            });
+
+          svg.call(zoom);
 
           isMapReady.value = true;
 
           // 將地圖實例傳遞給父組件
-          emit('map-ready', { map });
+          emit('map-ready', { svg, projection, path });
 
-          console.log('[MapTab] Leaflet 地圖創建成功');
+          console.log('[MapTab] D3.js 地圖創建成功');
           return true;
         } catch (error) {
-          console.error('[MapTab] Leaflet 地圖創建失敗:', error);
+          console.error('[MapTab] D3.js 地圖創建失敗:', error);
           return false;
         }
       };
 
       /**
-       * 🎨 繪製 OSM 地點圖層
+       * 🎨 繪製諾魯 GeoJSON
        */
-      const drawPlaces = () => {
-        if (!map || !placesData.value) {
-          console.error('[MapTab] 無法繪製地點: map=', !!map, 'placesData=', !!placesData.value);
+      const drawNauru = () => {
+        if (!g || !placesData.value) {
+          console.error('[MapTab] 無法繪製諾魯: g=', !!g, 'placesData=', !!placesData.value);
           return;
         }
 
         try {
-          console.log('[MapTab] 開始繪製地點，數量:', placesData.value.features?.length);
-
-          // 創建 GeoJSON 圖層（使用諾魯國旗的白色）
-          placesLayer = L.geoJSON(placesData.value, {
-            style: {
-              fillColor: '#FFFFFF', // 白色填充（諾魯國旗配色）
-              fillOpacity: 0.9,
-              stroke: false, // 不顯示邊框
-            },
-            onEachFeature: (feature, layer) => {
-              // 添加懸停效果
-              layer.on({
-                mouseover: (e) => {
-                  const layer = e.target;
-                  layer.setStyle({
-                    fillColor: '#D0D0D0', // 懸停時變成較深的灰白色
-                    fillOpacity: 1,
-                  });
-                },
-                mouseout: (e) => {
-                  const layer = e.target;
-                  layer.setStyle({
-                    fillColor: '#FFFFFF', // 恢復白色
-                    fillOpacity: 0.9,
-                  });
-                },
-              });
-            },
-          }).addTo(map);
-
-          // 不自動調整地圖視野，保持中心點在赤道與諾魯之間
-
-          console.log(
-            '[MapTab] OSM 地點繪製完成，已繪製',
-            placesData.value.features?.length,
-            '個地點'
+          // 過濾出諾魯（Naoero）的數據
+          const nauruFeature = placesData.value.features.find(
+            (feature) => feature.properties.name === 'Naoero'
           );
+
+          if (!nauruFeature) {
+            console.error('[MapTab] 找不到諾魯（Naoero）數據');
+            return;
+          }
+
+          console.log('[MapTab] 開始繪製諾魯 GeoJSON');
+
+          // 使用 D3.js 繪製諾魯島嶼多邊形
+          g.append('path')
+            .datum(nauruFeature)
+            .attr('d', path)
+            .attr('class', 'nauru')
+            .attr('fill', '#FFFFFF') // 白色填充（諾魯國旗配色）
+            .attr('fill-opacity', 0.9)
+            .attr('stroke', '#FFC61E') // 金黃色邊框
+            .attr('stroke-width', 1);
+
+          console.log('[MapTab] 諾魯 GeoJSON 繪製完成');
         } catch (error) {
-          console.error('[MapTab] OSM 地點繪製失敗:', error);
+          console.error('[MapTab] 諾魯 GeoJSON 繪製失敗:', error);
         }
       };
 
@@ -366,8 +391,8 @@
             console.log('[MapTab] 地圖創建成功，開始繪製圖層');
             // 繪製赤道線（金黃色）
             drawEquator();
-            // 繪製地點圖層（白色）
-            drawPlaces();
+            // 繪製諾魯 GeoJSON（白色多邊形）
+            drawNauru();
           } else {
             console.log('[MapTab] 地圖創建失敗，100ms 後重試');
             setTimeout(tryCreateMap, 100);
@@ -386,12 +411,15 @@
 
       // 🧹 生命週期：組件卸載
       onUnmounted(() => {
-        if (map) {
-          map.remove();
-          map = null;
+        if (svg) {
+          svg.remove();
+          svg = null;
         }
 
-        placesLayer = null;
+        projection = null;
+        path = null;
+        zoom = null;
+        g = null;
         isMapReady.value = false;
       });
 
