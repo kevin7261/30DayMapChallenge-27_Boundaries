@@ -1,12 +1,12 @@
 <script>
   /**
    * ═══════════════════════════════════════════════════════════════════════════
-   * 🗺️ MapTab.vue - D3.js 台灣縣市地圖組件
+   * 🗺️ MapTab.vue - D3.js 台灣地圖組件
    * ═══════════════════════════════════════════════════════════════════════════
    *
    * @fileoverview
-   * 這是一個基於 D3.js 的台灣直轄市、縣(市)界線地圖視覺化組件。
-   * 本組件負責載入、處理和渲染台灣直轄市、縣(市)界線的 GeoJSON 數據。
+   * 這是一個基於 D3.js 的台灣地圖視覺化組件，同時顯示縣市界線和登革熱網格數據。
+   * 本組件負責載入、處理和渲染台灣直轄市、縣(市)界線和登革熱病例網格數據。
    *
    * ─────────────────────────────────────────────────────────────────────────
    * 📋 核心功能
@@ -15,12 +15,18 @@
    *    ✓ 載入直轄市、縣(市)界線1140318.geojson
    *    ✓ 繪製所有台灣直轄市、縣(市)界線
    *
-   * 2. 視覺元素：
-   *    ✓ 白色填充的縣市區域
-   *    ✓ 黑色縣市邊界線
+   * 2. 登革熱網格渲染：
+   *    ✓ 載入 dengue_grid_counts_1km_2023.geojson
+   *    ✓ 根據 level 屬性繪製彩虹色漸變網格
+   *    ✓ 使用彩虹配色映射風險等級（最上層）
+   *
+   * 3. 視覺元素：
+   *    ✓ 縣市區域：白色填充（底層）
+   *    ✓ 縣市邊界：黑色邊界線
+   *    ✓ 登革熱網格：彩虹色漸變填充，無邊框（最上層）
    *    ✓ 灰色地圖背景
    *
-   * 3. 交互功能：
+   * 4. 交互功能：
    *    ✓ 滾輪縮放控制
    *    ✓ 拖動平移導航
    *
@@ -30,6 +36,7 @@
    * 灰色      #808080  → 地圖背景
    * 黑色      #000000  → 縣市邊框
    * 白色      #FFFFFF  → 縣市填充
+   * 彩虹色    漸變      → 登革熱風險等級（最上層）
    *
    * ─────────────────────────────────────────────────────────────────────────
    * 🛠️ 技術棧
@@ -42,7 +49,8 @@
    * 📁 數據來源
    * ─────────────────────────────────────────────────────────────────────────
    * 直轄市、縣(市)界線：直轄市、縣(市)界線1140318.geojson
-   * 路徑：public/data/geojson/COUNTY_MOI_1140318.geojson
+   * 登革熱網格數據：dengue_grid_counts_1km_2023.geojson
+   * 路徑：public/data/geojson/
    *
    * ─────────────────────────────────────────────────────────────────────────
    * 🔧 使用方式
@@ -55,7 +63,7 @@
    * 📝 維護者
    * ─────────────────────────────────────────────────────────────────────────
    * @author Kevin Cheng
-   * @version 3.0.0
+   * @version 4.0.0
    * @since 2024
    * @license MIT
    *
@@ -177,6 +185,13 @@
       const countyData = ref(null);
 
       /**
+       * 登革熱網格 GeoJSON 數據
+       * 來源：dengue_grid_counts_1km_2023.geojson
+       * @type {Ref<Object|null>}
+       */
+      const dengueData = ref(null);
+
+      /**
        * 📥 載入直轄市、縣(市)界線 GeoJSON 數據
        */
       const loadCountyData = async () => {
@@ -185,7 +200,7 @@
 
           // 載入縣市 GeoJSON 檔案
           const countyResponse = await fetch(
-            `${process.env.BASE_URL}data/geojson/COUNTY_MOI_1140318.geojson`
+            `${process.env.BASE_URL}data/geojson/直轄市、縣(市)界線1140318.geojson`
           );
 
           // 檢查響應
@@ -202,6 +217,36 @@
           return true;
         } catch (error) {
           console.error('[MapTab] 直轄市、縣(市)界線數據載入失敗:', error);
+          return false;
+        }
+      };
+
+      /**
+       * 📥 載入登革熱網格 GeoJSON 數據
+       */
+      const loadDengueData = async () => {
+        try {
+          console.log('[MapTab] 開始載入登革熱網格 GeoJSON 數據...');
+
+          // 載入登革熱網格 GeoJSON 檔案
+          const dengueResponse = await fetch(
+            `${process.env.BASE_URL}data/geojson/dengue_grid_counts_1km_2023.geojson`
+          );
+
+          // 檢查響應
+          if (!dengueResponse.ok) {
+            throw new Error(`登革熱網格數據載入失敗: HTTP ${dengueResponse.status}`);
+          }
+
+          // 解析 JSON
+          dengueData.value = await dengueResponse.json();
+
+          console.log('[MapTab] 登革熱網格數據載入成功');
+          console.log('  - 網格數量:', dengueData.value.features?.length || 0);
+
+          return true;
+        } catch (error) {
+          console.error('[MapTab] 登革熱網格數據載入失敗:', error);
           return false;
         }
       };
@@ -238,6 +283,52 @@
           console.log('[MapTab] 直轄市、縣(市)界線 GeoJSON 繪製完成');
         } catch (error) {
           console.error('[MapTab] 直轄市、縣(市)界線 GeoJSON 繪製失敗:', error);
+        }
+      };
+
+      /**
+       * 🗺️ 繪製登革熱網格
+       */
+      const drawDengueGrid = () => {
+        if (!g || !dengueData.value) {
+          console.error('[MapTab] 無法繪製登革熱網格: g=', !!g, 'dengueData=', !!dengueData.value);
+          return;
+        }
+
+        try {
+          console.log('[MapTab] 開始繪製登革熱網格 GeoJSON');
+
+          // 創建顏色比例尺，根據 level 值
+          const maxLevel = d3.max(dengueData.value.features, (d) => d.properties.level);
+          // 使用彩虹配色
+          const colorScale = d3.scaleSequential(d3.interpolateRainbow).domain([0, maxLevel]);
+
+          // 繪製所有登革熱網格
+          g.selectAll('.dengue-grid')
+            .data(dengueData.value.features)
+            .enter()
+            .append('path')
+            .attr('d', path)
+            .attr('class', 'dengue-grid')
+            .attr('fill', (d) => {
+              const level = d.properties.level;
+              if (level === 0) {
+                return '#ffffff'; // level 0：白色
+              }
+              return colorScale(level);
+            })
+            .attr('fill-opacity', (d) => {
+              const level = d.properties.level;
+              if (level === 0) return 0.3;
+              // 根據 level 調整透明度，使顏色更鮮豔
+              return Math.min(0.9, 0.5 + (level / maxLevel) * 0.4);
+            })
+            .attr('stroke', 'none'); // 移除邊框
+
+          console.log('[MapTab] 登革熱網格 GeoJSON 繪製完成');
+          console.log('  - 最大 level:', maxLevel);
+        } catch (error) {
+          console.error('[MapTab] 登革熱網格 GeoJSON 繪製失敗:', error);
         }
       };
 
@@ -312,12 +403,24 @@
         let attempts = 0;
         const maxAttempts = 20;
 
-        // 載入直轄市、縣(市)界線數據
-        const loaded = await loadCountyData();
-        if (!loaded) {
+        // 同時載入兩個數據集
+        console.log('[MapTab] 開始載入所有數據集...');
+        const [countyLoaded, dengueLoaded] = await Promise.all([
+          loadCountyData(),
+          loadDengueData(),
+        ]);
+
+        if (!countyLoaded) {
           console.error('[MapTab] 無法載入直轄市、縣(市)界線數據');
           return;
         }
+
+        if (!dengueLoaded) {
+          console.error('[MapTab] 無法載入登革熱網格數據');
+          return;
+        }
+
+        console.log('[MapTab] 所有數據載入完成，開始創建地圖');
 
         const tryCreateMap = async () => {
           if (attempts >= maxAttempts) {
@@ -330,8 +433,10 @@
 
           if (createMap()) {
             console.log('[MapTab] 地圖創建成功，開始繪製圖層');
-            // 繪製直轄市、縣(市)界線
+            // 先繪製縣市界線（底層）
             drawCounties();
+            // 再繪製登革熱網格（上層）
+            drawDengueGrid();
           } else {
             console.log('[MapTab] 地圖創建失敗，100ms 後重試');
             setTimeout(tryCreateMap, 100);
