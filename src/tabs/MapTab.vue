@@ -300,8 +300,8 @@
 
           // 創建顏色比例尺，根據 level 值
           const maxLevel = d3.max(dengueData.value.features, (d) => d.properties.level);
-          // 使用更優雅的藍綠到紅橙漸變配色
-          const colorScale = d3.scaleSequential(d3.interpolateViridis).domain([0, maxLevel]);
+          // 使用科技感的霓虹藍綠到紫紅漸變
+          const colorScale = d3.scaleSequential(d3.interpolatePlasma).domain([0, maxLevel]);
 
           // 繪製所有登革熱網格
           g.selectAll('.dengue-grid')
