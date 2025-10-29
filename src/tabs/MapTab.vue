@@ -537,13 +537,13 @@
               d3.select(this).attr('fill-opacity', 1);
               if (tooltip) {
                 const properties = d.properties;
-                tooltip.innerHTML = `
-                  <div>Grid ID: ${properties.grid_id || 'N/A'}</div>
-                  <div>Grid X: ${properties.grid_x || 'N/A'}</div>
-                  <div>Grid Y: ${properties.grid_y || 'N/A'}</div>
-                  <div>Point Count: ${properties.point_count || 0}</div>
-                  <div>Level: ${properties.level || 'N/A'}</div>
-                `;
+                // 顯示所有 properties 欄位
+                let tooltipHTML = '';
+                Object.keys(properties).forEach((key) => {
+                  const value = properties[key];
+                  tooltipHTML += `<div><strong>${key}:</strong> ${value !== null && value !== undefined ? value : 'N/A'}</div>`;
+                });
+                tooltip.innerHTML = tooltipHTML;
                 const [mouseX, mouseY] = d3.pointer(event, mapContainer.value);
                 tooltip.style.left = mouseX + 10 + 'px';
                 tooltip.style.top = mouseY - 10 + 'px';
