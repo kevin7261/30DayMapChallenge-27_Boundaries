@@ -341,8 +341,9 @@
 
           // 創建顏色映射，根據 level 值使用5級色票
           const maxLevel = d3.max(dengueData.value.features, (d) => d.properties.level);
-          // 5級色票：深藍 → 綠 → 黃橙 → 橙 → 紅
+          // 顏色映射：淡灰(0) → 深藍(1) → 綠(2) → 黃橙(3) → 橙(4) → 紅(5)
           const levelColors = {
+            0: '#e0e0e0', // 淡灰色（level 0）
             1: '#1a237e', // 深藍色（深色）
             2: '#4caf50', // 綠色（較亮）
             3: '#fbc02d', // 黃橙色（金色）
@@ -352,14 +353,20 @@
 
           // 顏色映射函數
           const getColorByLevel = (level) => {
-            // 直接使用 level 值，不做限制
+            // 如果 level 是 0 或未定義，返回淡灰色
+            if (level === 0 || level === null || level === undefined) {
+              return levelColors[0];
+            }
             return levelColors[level] || levelColors[1];
           };
 
-          // 過濾出有病例的網格
-          const gridsWithData = dengueData.value.features.filter(
-            (d) => d.properties.point_count > 0
-          );
+          // 繪製所有網格（包括 level 0）
+          // 按 level 排序：level 0 在底層，level 1-5 在上層
+          const gridsWithData = dengueData.value.features.sort((a, b) => {
+            const levelA = a.properties.level || 0;
+            const levelB = b.properties.level || 0;
+            return levelA - levelB; // 先繪製 level 0，再繪製 level 1-5
+          });
 
           console.log('[DEBUG] 總共要繪製的網格數:', gridsWithData.length);
           console.log(
@@ -394,17 +401,17 @@
               return color;
             })
             .attr('fill-opacity', (d) => {
-              const level = d.properties.level;
+              const level = d.properties.level || 0;
               // 根據 level 調整透明度，level 越高越不透明
               const opacityMap = {
+                0: 0.5, // level 0 淡灰色，較透明
                 1: 0.7,
                 2: 0.75,
                 3: 0.8,
                 4: 0.85,
                 5: 0.9,
               };
-              const clampedLevel = Math.max(1, Math.min(5, level));
-              return opacityMap[clampedLevel] || 0.7;
+              return opacityMap[level] || opacityMap[0];
             })
             .attr('stroke', 'none') // 移除邊框
             .style('cursor', 'pointer') // 添加手型游標
@@ -440,16 +447,16 @@
             })
             .on('mouseout', function (event, d) {
               // 恢復原始透明度
-              const level = d.properties.level;
+              const level = d.properties.level || 0;
               const opacityMap = {
+                0: 0.5, // level 0 淡灰色，較透明
                 1: 0.7,
                 2: 0.75,
                 3: 0.8,
                 4: 0.85,
                 5: 0.9,
               };
-              const clampedLevel = Math.max(1, Math.min(5, level));
-              d3.select(this).attr('fill-opacity', opacityMap[clampedLevel] || 0.7);
+              d3.select(this).attr('fill-opacity', opacityMap[level] || opacityMap[0]);
 
               // 隱藏工具提示
               if (tooltip) {
@@ -507,7 +514,7 @@
           // 設置縮放行為
           zoom = d3
             .zoom()
-            .scaleExtent([1, 20]) // 允許縮放 1x 到 20x
+            .scaleExtent([0.5, 50]) // 允許縮放 0.5x 到 50x
             .on('zoom', (event) => {
               g.attr('transform', event.transform);
             });
