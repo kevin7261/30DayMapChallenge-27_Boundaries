@@ -17,25 +17,33 @@
    *
    * 2. 登革熱網格渲染：
    *    ✓ 載入 dengue_grid_counts_1km_2023.geojson
-   *    ✓ 根據 level 屬性繪製疫情風險等級網格
-   *    ✓ 使用紅-黃-綠配色映射風險等級（最上層）
+   *    ✓ 根據 level 屬性繪製5級風險等級網格
+   *    ✓ 只顯示病例數 > 0 的網格
+   *    ✓ 使用5級色票：深藍(1) → 綠(2) → 黃橙(3) → 橙(4) → 紅(5)（最上層）
    *
    * 3. 視覺元素：
-   *    ✓ 縣市區域：白色填充，深灰邊框（底層）
-   *    ✓ 登革熱網格：紅-黃-綠風險等級填充，無邊框（最上層）
-   *    ✓ 淺灰白色地圖背景
+   *    ✓ 縣市界線：淺灰細邊框，無填充（底層）
+   *    ✓ 登革熱網格：5級色票填充，無邊框（最上層）
+   *    ✓ 白色地圖背景
    *
    * 4. 交互功能：
    *    ✓ 滾輪縮放控制
    *    ✓ 拖動平移導航
+   *    ✓ 滑鼠懸停顯示網格屬性資訊
+   *    ✓ 網格高亮效果
    *
    * ─────────────────────────────────────────────────────────────────────────
    * 🎨 配色主題
    * ─────────────────────────────────────────────────────────────────────────
-   * 淺灰白    #f7fafc  → 地圖背景
-   * 深灰色    #4a5568  → 縣市邊框
-   * 白色      #ffffff  → 縣市填充
-   * 紅-黃-綠  漸變      → 登革熱風險等級（最上層）
+   * 白色      #ffffff  → 地圖背景
+   * 淺灰色    #cccccc  → 縣市邊框
+   * 無填充    none     → 縣市區域
+   * 5級色票            → 登革熱風險等級（最上層）
+   *   Level 1  #1a237e → 深藍色
+   *   Level 2  #4caf50 → 綠色
+   *   Level 3  #fbc02d → 黃橙色
+   *   Level 4  #ff6f00 → 橙色
+   *   Level 5  #d32f2f → 紅色
    *
    * ─────────────────────────────────────────────────────────────────────────
    * 🛠️ 技術棧
@@ -154,6 +162,12 @@
        */
       let g = null;
 
+      /**
+       * 工具提示元素
+       * @type {HTMLElement|null}
+       */
+      let tooltip = null;
+
       // ═══════════════════════════════════════════════════════════════════════
       // 🎛️ 控制狀態 (Control States)
       // ═══════════════════════════════════════════════════════════════════════
@@ -221,6 +235,30 @@
       };
 
       /**
+       * 🛠️ 創建工具提示元素
+       */
+      const createTooltip = () => {
+        if (!mapContainer.value) return;
+
+        // 移除已存在的工具提示
+        const existingTooltip = mapContainer.value.querySelector('.map-tooltip');
+        if (existingTooltip) {
+          existingTooltip.remove();
+        }
+
+        // 創建新的工具提示元素
+        tooltip = document.createElement('div');
+        tooltip.className = 'map-tooltip';
+        tooltip.style.position = 'absolute';
+        tooltip.style.pointerEvents = 'none';
+        tooltip.style.opacity = '0';
+        tooltip.style.padding = '4px 8px';
+
+        mapContainer.value.appendChild(tooltip);
+        console.log('[MapTab] 工具提示元素創建成功');
+      };
+
+      /**
        * 📥 載入登革熱網格 GeoJSON 數據
        */
       const loadDengueData = async () => {
@@ -274,10 +312,9 @@
             .append('path')
             .attr('d', path)
             .attr('class', 'county')
-            .attr('fill', '#ffffff') // 白色填充
-            .attr('fill-opacity', 0.3)
-            .attr('stroke', '#4a5568') // 深灰色邊框
-            .attr('stroke-width', 1.0)
+            .attr('fill', 'none') // 不填充
+            .attr('stroke', '#cccccc') // 淺灰色邊框
+            .attr('stroke-width', 0.5)
             .attr('stroke-opacity', 0.6);
 
           console.log('[MapTab] 直轄市、縣(市)界線 GeoJSON 繪製完成');
@@ -298,32 +335,127 @@
         try {
           console.log('[MapTab] 開始繪製登革熱網格 GeoJSON');
 
-          // 創建顏色比例尺，根據 level 值
+          // 先清除舊的圖層，避免重複疊加造成數字與顏色不一致
+          g.selectAll('.dengue-grid').remove();
+          g.selectAll('.dengue-grid-label').remove();
+
+          // 創建顏色映射，根據 level 值使用5級色票
           const maxLevel = d3.max(dengueData.value.features, (d) => d.properties.level);
-          // 使用疫情風險等級配色：綠色(安全) → 黃色(注意) → 橙色(警告) → 紅色(危險)
-          const colorScale = d3.scaleSequential(d3.interpolateRdYlGn).domain([maxLevel, 0]);
+          // 5級色票：深藍 → 綠 → 黃橙 → 橙 → 紅
+          const levelColors = {
+            1: '#1a237e', // 深藍色（深色）
+            2: '#4caf50', // 綠色（較亮）
+            3: '#fbc02d', // 黃橙色（金色）
+            4: '#ff6f00', // 橙色（明亮）
+            5: '#d32f2f', // 紅色（深色）
+          };
+
+          // 顏色映射函數
+          const getColorByLevel = (level) => {
+            // 直接使用 level 值，不做限制
+            return levelColors[level] || levelColors[1];
+          };
+
+          // 過濾出有病例的網格
+          const gridsWithData = dengueData.value.features.filter(
+            (d) => d.properties.point_count > 0
+          );
+
+          console.log('[DEBUG] 總共要繪製的網格數:', gridsWithData.length);
+          console.log(
+            '[DEBUG] 前 5 個網格的 level:',
+            gridsWithData.slice(0, 5).map((d) => ({
+              grid_id: d.properties.grid_id,
+              level: d.properties.level,
+              point_count: d.properties.point_count,
+            }))
+          );
 
           // 繪製所有登革熱網格
           g.selectAll('.dengue-grid')
-            .data(dengueData.value.features)
+            .data(gridsWithData)
             .enter()
             .append('path')
             .attr('d', path)
             .attr('class', 'dengue-grid')
             .attr('fill', (d) => {
-              const level = d.properties.level;
-              if (level === 0) {
-                return '#e8f5e8'; // level 0：淺綠色（安全區域）
+              const color = getColorByLevel(d.properties.level);
+              // Debug: 只記錄前 10 個
+              if (gridsWithData.indexOf(d) < 10) {
+                console.log(
+                  '[DEBUG] Grid',
+                  d.properties.grid_id,
+                  '- level:',
+                  d.properties.level,
+                  ', color:',
+                  color
+                );
               }
-              return colorScale(level);
+              return color;
             })
             .attr('fill-opacity', (d) => {
               const level = d.properties.level;
-              if (level === 0) return 0.6;
-              // 根據 level 調整透明度，高風險區域更明顯
-              return Math.min(0.9, 0.7 + (level / maxLevel) * 0.2);
+              // 根據 level 調整透明度，level 越高越不透明
+              const opacityMap = {
+                1: 0.7,
+                2: 0.75,
+                3: 0.8,
+                4: 0.85,
+                5: 0.9,
+              };
+              const clampedLevel = Math.max(1, Math.min(5, level));
+              return opacityMap[clampedLevel] || 0.7;
             })
-            .attr('stroke', 'none'); // 移除邊框
+            .attr('stroke', 'none') // 移除邊框
+            .style('cursor', 'pointer') // 添加手型游標
+            .on('mouseover', function (event, d) {
+              // 高亮效果：增加透明度
+              d3.select(this).attr('fill-opacity', 1);
+
+              // 顯示工具提示
+              if (tooltip) {
+                const properties = d.properties;
+                tooltip.innerHTML = `
+                  <div>Grid ID: ${properties.grid_id || 'N/A'}</div>
+                  <div>Point Count: ${properties.point_count || 0}</div>
+                  <div>Level: ${properties.level || 'N/A'}</div>
+                `;
+
+                // 獲取滑鼠位置
+                const [mouseX, mouseY] = d3.pointer(event, mapContainer.value);
+
+                // 設置工具提示位置
+                tooltip.style.left = mouseX + 10 + 'px';
+                tooltip.style.top = mouseY - 10 + 'px';
+                tooltip.style.opacity = 1;
+              }
+            })
+            .on('mousemove', function (event) {
+              // 更新工具提示位置
+              if (tooltip) {
+                const [mouseX, mouseY] = d3.pointer(event, mapContainer.value);
+                tooltip.style.left = mouseX + 10 + 'px';
+                tooltip.style.top = mouseY - 10 + 'px';
+              }
+            })
+            .on('mouseout', function (event, d) {
+              // 恢復原始透明度
+              const level = d.properties.level;
+              const opacityMap = {
+                1: 0.7,
+                2: 0.75,
+                3: 0.8,
+                4: 0.85,
+                5: 0.9,
+              };
+              const clampedLevel = Math.max(1, Math.min(5, level));
+              d3.select(this).attr('fill-opacity', opacityMap[clampedLevel] || 0.7);
+
+              // 隱藏工具提示
+              if (tooltip) {
+                tooltip.style.opacity = 0;
+              }
+            });
 
           console.log('[MapTab] 登革熱網格 GeoJSON 繪製完成');
           console.log('  - 最大 level:', maxLevel);
@@ -357,7 +489,7 @@
             .append('svg')
             .attr('width', width)
             .attr('height', height)
-            .style('background', '#f7fafc'); // 淺灰白色背景
+            .style('background', '#ffffff'); // 白色背景
 
           // 創建投影 - 麥卡托投影，聚焦在台灣
           projection = d3
@@ -381,6 +513,9 @@
             });
 
           svg.call(zoom);
+
+          // 創建工具提示元素
+          createTooltip();
 
           isMapReady.value = true;
 
@@ -460,6 +595,12 @@
           svg = null;
         }
 
+        // 清理工具提示
+        if (tooltip) {
+          tooltip.remove();
+          tooltip = null;
+        }
+
         projection = null;
         path = null;
         zoom = null;
@@ -492,7 +633,7 @@
   }
 
   :deep(.leaflet-container) {
-    background: #f7fafc; /* 淺灰白色背景 */
+    background: #ffffff; /* 白色背景 */
   }
 
   :deep(.leaflet-popup-content-wrapper) {
@@ -516,12 +657,8 @@
   }
 
   :deep(.map-tooltip) {
-    background-color: rgba(0, 43, 127, 0.95); /* 諾魯深藍色 */
-    color: #ffc61e; /* 金黃色文字 */
-    border: 1px solid #ffc61e; /* 金黃色邊框 */
-    padding: 8px 12px;
-    border-radius: 4px;
-    font-size: 14px;
-    line-height: 1.4;
+    background-color: #333; /* 深灰色背景 */
+    color: #fff; /* 白色文字 */
+    border: none; /* 無邊框 */
   }
 </style>
