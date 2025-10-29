@@ -374,6 +374,9 @@
 
           svg.call(zoom);
 
+          // 重置縮放狀態，確保切換模式時不會受到之前模式的影響
+          svg.call(zoom.transform, d3.zoomIdentity);
+
           // 創建工具提示元素
           createTooltip();
 
@@ -585,6 +588,13 @@
           if (!countyData.value) {
             await loadCountyData();
           }
+
+          // 清除舊的 SVG（如果從其他模式切換過來）
+          if (svg && !projection) {
+            svg.remove();
+            svg = null;
+          }
+
           if (!projection || !path) {
             // 如果還沒有創建地圖，先創建
             const rect = mapContainer.value.getBoundingClientRect();
@@ -622,8 +632,17 @@
                 });
 
               svg.call(zoom);
+
+              // 重置縮放狀態，確保切換模式時不會受到之前模式的影響
+              svg.call(zoom.transform, d3.zoomIdentity);
+
               createTooltip();
               isMapReady.value = true;
+            }
+          } else {
+            // 如果已經創建了地圖，重置縮放狀態
+            if (svg && zoom) {
+              svg.call(zoom.transform, d3.zoomIdentity);
             }
           }
           // 繪製縣市界線和登革熱網格
@@ -636,6 +655,18 @@
           }
           // 清除縣市界線數據（不需要）
           countyData.value = null;
+
+          // 清除舊的 SVG（如果從地圖模式切換過來）
+          const hasProjection = !!projection;
+          if (svg && hasProjection) {
+            svg.remove();
+            svg = null;
+          }
+
+          // 清除地圖投影相關變數（從地圖模式切換過來時）
+          projection = null;
+          path = null;
+
           // 創建網格畫布（不使用地圖投影）
           createGridCanvas();
           // 繪製網格
@@ -722,11 +753,13 @@
               d3.select(this).attr('fill-opacity', 1);
               if (tooltip) {
                 const properties = d.properties;
-                tooltip.innerHTML = `
-                  <div>Grid ID: ${properties.grid_id || 'N/A'}</div>
-                  <div>Point Count: ${properties.point_count || 0}</div>
-                  <div>Level: ${properties.level || 'N/A'}</div>
-                `;
+                // 顯示所有 properties 欄位
+                let tooltipHTML = '';
+                Object.keys(properties).forEach((key) => {
+                  const value = properties[key];
+                  tooltipHTML += `<div><strong>${key}:</strong> ${value !== null && value !== undefined ? value : 'N/A'}</div>`;
+                });
+                tooltip.innerHTML = tooltipHTML;
                 const [mouseX, mouseY] = d3.pointer(event, mapContainer.value);
                 tooltip.style.left = mouseX + 10 + 'px';
                 tooltip.style.top = mouseY - 10 + 'px';
@@ -804,6 +837,9 @@
             });
 
           svg.call(zoom);
+
+          // 重置縮放狀態，確保切換模式時不會受到之前模式的影響
+          svg.call(zoom.transform, d3.zoomIdentity);
 
           // 創建工具提示元素
           createTooltip();
