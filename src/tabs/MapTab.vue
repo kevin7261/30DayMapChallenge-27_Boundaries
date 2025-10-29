@@ -363,7 +363,7 @@
           projection = d3
             .geoMercator()
             .center([121, 23.5]) // 中心點在台灣
-            .scale(8000) // 更大的縮放比例，更聚焦在台灣
+            .scale(12000) // 更大的縮放比例，更聚焦在台灣
             .translate([width / 2, height / 2]);
 
           // 創建路徑生成器
