@@ -186,6 +186,14 @@
        */
       const mapContainerId = ref(`leaflet-map-${Math.random().toString(36).substr(2, 9)}`);
 
+      /**
+       * 顯示模式
+       * 'map' = 使用地圖投影顯示（目前結果）
+       * 'grid' = 直接使用 grid_x, grid_y 繪製網格
+       * @type {Ref<string>}
+       */
+      const displayMode = ref('map');
+
       // ═══════════════════════════════════════════════════════════════════════
       // 📊 GeoJSON 數據儲存 (GeoJSON Data Storage)
       // ═══════════════════════════════════════════════════════════════════════
@@ -324,6 +332,318 @@
       };
 
       /**
+       * 🏗️ 創建網格畫布（不依賴地圖投影）
+       * 用於 grid 模式，直接使用 grid_x, grid_y 繪製
+       */
+      const createGridCanvas = () => {
+        if (!mapContainer.value) return false;
+
+        const rect = mapContainer.value.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) {
+          console.warn('[MapTab] 容器尺寸為零，延遲初始化');
+          return false;
+        }
+
+        try {
+          // 清除舊的 SVG
+          if (svg) {
+            svg.remove();
+          }
+
+          const width = rect.width;
+          const height = rect.height;
+
+          // 創建 SVG 元素（不帶地圖投影）
+          svg = d3
+            .select(mapContainer.value)
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height)
+            .style('background', '#ffffff'); // 白色背景
+
+          // 創建容器組（不使用地圖投影）
+          g = svg.append('g');
+
+          // 設置縮放行為（用於網格縮放）
+          zoom = d3
+            .zoom()
+            .scaleExtent([0.5, 50]) // 允許縮放 0.5x 到 50x
+            .on('zoom', (event) => {
+              g.attr('transform', event.transform);
+            });
+
+          svg.call(zoom);
+
+          // 創建工具提示元素
+          createTooltip();
+
+          isMapReady.value = true;
+
+          console.log('[MapTab] 網格畫布創建成功');
+          return true;
+        } catch (error) {
+          console.error('[MapTab] 網格畫布創建失敗:', error);
+          return false;
+        }
+      };
+
+      /**
+       * 🗺️ 繪製網格（使用 grid_x, grid_y，不使用座標）
+       * 完全獨立的實現，不依賴地圖投影
+       */
+      const drawGridOnly = () => {
+        if (!g || !dengueData.value) {
+          console.error('[MapTab] 無法繪製網格: g=', !!g, 'dengueData=', !!dengueData.value);
+          return;
+        }
+
+        try {
+          console.log('[MapTab] 開始繪製網格（使用 grid_x, grid_y）');
+
+          // 清除舊的網格
+          g.selectAll('.dengue-grid').remove();
+
+          // 顏色映射
+          const levelColors = {
+            0: '#e0e0e0', // 淡灰色（level 0）
+            1: '#1a237e', // 深藍色（深色）
+            2: '#4caf50', // 綠色（較亮）
+            3: '#fbc02d', // 黃橙色（金色）
+            4: '#ff6f00', // 橙色（明亮）
+            5: '#d32f2f', // 紅色（深色）
+          };
+
+          // 顏色映射函數
+          const getColorByLevel = (level) => {
+            if (level === 0 || level === null || level === undefined) {
+              return levelColors[0];
+            }
+            return levelColors[level] || levelColors[1];
+          };
+
+          // 透明度映射函數
+          const getOpacityByLevel = (level) => {
+            const levelNum = level || 0;
+            const opacityMap = {
+              0: 0.5,
+              1: 0.7,
+              2: 0.75,
+              3: 0.8,
+              4: 0.85,
+              5: 0.9,
+            };
+            return opacityMap[levelNum] || opacityMap[0];
+          };
+
+          // 過濾有 grid_x 和 grid_y 的數據
+          const gridsWithXY = dengueData.value.features.filter(
+            (d) =>
+              d.properties.grid_x !== null &&
+              d.properties.grid_x !== undefined &&
+              d.properties.grid_y !== null &&
+              d.properties.grid_y !== undefined
+          );
+
+          if (gridsWithXY.length === 0) {
+            console.error('[MapTab] 無法找到 grid_x 或 grid_y 屬性');
+            return;
+          }
+
+          // 計算 grid_x 和 grid_y 的範圍
+          const gridXValues = gridsWithXY.map((d) => d.properties.grid_x);
+          const gridYValues = gridsWithXY.map((d) => d.properties.grid_y);
+
+          const minX = d3.min(gridXValues);
+          const maxX = d3.max(gridXValues);
+          const minY = d3.min(gridYValues);
+          const maxY = d3.max(gridYValues);
+
+          console.log('[MapTab] Grid 範圍:', { minX, maxX, minY, maxY });
+
+          // 獲取 SVG 尺寸
+          const svgWidth = +svg.attr('width') || mapContainer.value.getBoundingClientRect().width;
+          const svgHeight =
+            +svg.attr('height') || mapContainer.value.getBoundingClientRect().height;
+
+          // 創建比例尺（帶有一些邊距）
+          const padding = 50;
+          const availableWidth = svgWidth - 2 * padding;
+          const availableHeight = svgHeight - 2 * padding;
+
+          // 計算 grid 範圍（包括邊界）
+          const rangeX = maxX - minX + 1;
+          const rangeY = maxY - minY + 1;
+
+          // 計算理論單元大小（根據可用空間和範圍）
+          const cellWidthFromX = availableWidth / rangeX;
+          const cellHeightFromY = availableHeight / rangeY;
+
+          // 使用較小的值作為統一的單元大小，確保所有網格都是正方形且能完整顯示
+          const cellSize = Math.min(cellWidthFromX, cellHeightFromY);
+
+          // 根據實際單元大小計算實際使用的空間
+          const actualWidth = cellSize * rangeX;
+          const actualHeight = cellSize * rangeY;
+
+          // 計算居中偏移量
+          const offsetX = (svgWidth - actualWidth) / 2;
+          const offsetY = (svgHeight - actualHeight) / 2;
+
+          // 創建比例尺（使用統一的單元大小，並居中顯示）
+          const scaleX = d3
+            .scaleLinear()
+            .domain([minX, maxX + 1])
+            .range([offsetX, offsetX + actualWidth]);
+          // Y 軸：grid_y 最小值在上方，最大值在下方（SVG 坐標系：y=0 在頂部，向下遞增）
+          const scaleY = d3
+            .scaleLinear()
+            .domain([minY, maxY + 1])
+            .range([offsetY, offsetY + actualHeight]);
+
+          console.log('[MapTab] Grid 單元大小:', {
+            cellSize,
+            rangeX,
+            rangeY,
+            cellWidthFromX,
+            cellHeightFromY,
+          });
+
+          // 網格單元大小（統一為正方形）
+          const cellWidth = cellSize;
+          const cellHeight = cellSize;
+
+          // 按 level 排序：level 0 在底層，level 1-5 在上層
+          const sortedGrids = gridsWithXY.sort((a, b) => {
+            const levelA = a.properties.level || 0;
+            const levelB = b.properties.level || 0;
+            return levelA - levelB;
+          });
+
+          // 繪製網格矩形
+          g.selectAll('.dengue-grid')
+            .data(sortedGrids)
+            .enter()
+            .append('rect')
+            .attr('class', 'dengue-grid')
+            .attr('x', (d) => scaleX(d.properties.grid_x))
+            .attr('y', (d) => scaleY(d.properties.grid_y))
+            .attr('width', cellWidth)
+            .attr('height', cellHeight)
+            .attr('fill', (d) => getColorByLevel(d.properties.level))
+            .attr('fill-opacity', (d) => getOpacityByLevel(d.properties.level))
+            .attr('stroke', 'none')
+            .style('cursor', 'pointer')
+            .on('mouseover', function (event, d) {
+              d3.select(this).attr('fill-opacity', 1);
+              if (tooltip) {
+                const properties = d.properties;
+                tooltip.innerHTML = `
+                  <div>Grid ID: ${properties.grid_id || 'N/A'}</div>
+                  <div>Grid X: ${properties.grid_x || 'N/A'}</div>
+                  <div>Grid Y: ${properties.grid_y || 'N/A'}</div>
+                  <div>Point Count: ${properties.point_count || 0}</div>
+                  <div>Level: ${properties.level || 'N/A'}</div>
+                `;
+                const [mouseX, mouseY] = d3.pointer(event, mapContainer.value);
+                tooltip.style.left = mouseX + 10 + 'px';
+                tooltip.style.top = mouseY - 10 + 'px';
+                tooltip.style.opacity = 1;
+              }
+            })
+            .on('mousemove', function (event) {
+              if (tooltip) {
+                const [mouseX, mouseY] = d3.pointer(event, mapContainer.value);
+                tooltip.style.left = mouseX + 10 + 'px';
+                tooltip.style.top = mouseY - 10 + 'px';
+              }
+            })
+            .on('mouseout', function (event, d) {
+              const level = d.properties.level || 0;
+              d3.select(this).attr('fill-opacity', getOpacityByLevel(level));
+              if (tooltip) {
+                tooltip.style.opacity = 0;
+              }
+            });
+
+          console.log('[MapTab] 網格繪製完成');
+          console.log('  - 網格數量:', sortedGrids.length);
+        } catch (error) {
+          console.error('[MapTab] 網格繪製失敗:', error);
+        }
+      };
+
+      /**
+       * 🎛️ 切換顯示模式
+       * @param {string} mode - 'map' 或 'grid'
+       */
+      const toggleDisplayMode = async (mode) => {
+        displayMode.value = mode;
+        console.log('[MapTab] 切換顯示模式:', mode);
+
+        if (displayMode.value === 'map') {
+          // 地圖模式：需要地圖投影，載入縣市界線
+          if (!countyData.value) {
+            await loadCountyData();
+          }
+          if (!projection || !path) {
+            // 如果還沒有創建地圖，先創建
+            const rect = mapContainer.value.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+              const width = rect.width;
+              const height = rect.height;
+
+              // 清除舊的 SVG
+              if (svg) {
+                svg.remove();
+              }
+
+              // 創建 SVG 和地圖投影
+              svg = d3
+                .select(mapContainer.value)
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height)
+                .style('background', '#ffffff');
+
+              projection = d3
+                .geoMercator()
+                .center([121, 23.5])
+                .scale(12000)
+                .translate([width / 2, height / 2]);
+
+              path = d3.geoPath().projection(projection);
+              g = svg.append('g');
+
+              zoom = d3
+                .zoom()
+                .scaleExtent([0.5, 50])
+                .on('zoom', (event) => {
+                  g.attr('transform', event.transform);
+                });
+
+              svg.call(zoom);
+              createTooltip();
+              isMapReady.value = true;
+            }
+          }
+          // 繪製縣市界線和登革熱網格
+          drawCounties();
+          drawDengueGrid();
+        } else {
+          // Grid 模式：不需要地圖投影，只載入登革熱數據，直接繪製網格
+          if (!dengueData.value) {
+            await loadDengueData();
+          }
+          // 清除縣市界線數據（不需要）
+          countyData.value = null;
+          // 創建網格畫布（不使用地圖投影）
+          createGridCanvas();
+          // 繪製網格
+          drawGridOnly();
+        }
+      };
+
+      /**
        * 🗺️ 繪製登革熱網格
        */
       const drawDengueGrid = () => {
@@ -360,6 +680,20 @@
             return levelColors[level] || levelColors[1];
           };
 
+          // 透明度映射函數
+          const getOpacityByLevel = (level) => {
+            const levelNum = level || 0;
+            const opacityMap = {
+              0: 0.5, // level 0 淡灰色，較透明
+              1: 0.7,
+              2: 0.75,
+              3: 0.8,
+              4: 0.85,
+              5: 0.9,
+            };
+            return opacityMap[levelNum] || opacityMap[0];
+          };
+
           // 繪製所有網格（包括 level 0）
           // 按 level 排序：level 0 在底層，level 1-5 在上層
           const gridsWithData = dengueData.value.features.sort((a, b) => {
@@ -369,14 +703,9 @@
           });
 
           console.log('[DEBUG] 總共要繪製的網格數:', gridsWithData.length);
-          console.log(
-            '[DEBUG] 前 5 個網格的 level:',
-            gridsWithData.slice(0, 5).map((d) => ({
-              grid_id: d.properties.grid_id,
-              level: d.properties.level,
-              point_count: d.properties.point_count,
-            }))
-          );
+
+          // Map 模式：使用地圖投影繪製（使用 GeoJSON coordinates）
+          console.log('[MapTab] 使用 Map 模式繪製（地圖投影）');
 
           // 繪製所有登革熱網格
           g.selectAll('.dengue-grid')
@@ -385,41 +714,12 @@
             .append('path')
             .attr('d', path)
             .attr('class', 'dengue-grid')
-            .attr('fill', (d) => {
-              const color = getColorByLevel(d.properties.level);
-              // Debug: 只記錄前 10 個
-              if (gridsWithData.indexOf(d) < 10) {
-                console.log(
-                  '[DEBUG] Grid',
-                  d.properties.grid_id,
-                  '- level:',
-                  d.properties.level,
-                  ', color:',
-                  color
-                );
-              }
-              return color;
-            })
-            .attr('fill-opacity', (d) => {
-              const level = d.properties.level || 0;
-              // 根據 level 調整透明度，level 越高越不透明
-              const opacityMap = {
-                0: 0.5, // level 0 淡灰色，較透明
-                1: 0.7,
-                2: 0.75,
-                3: 0.8,
-                4: 0.85,
-                5: 0.9,
-              };
-              return opacityMap[level] || opacityMap[0];
-            })
-            .attr('stroke', 'none') // 移除邊框
-            .style('cursor', 'pointer') // 添加手型游標
+            .attr('fill', (d) => getColorByLevel(d.properties.level))
+            .attr('fill-opacity', (d) => getOpacityByLevel(d.properties.level))
+            .attr('stroke', 'none')
+            .style('cursor', 'pointer')
             .on('mouseover', function (event, d) {
-              // 高亮效果：增加透明度
               d3.select(this).attr('fill-opacity', 1);
-
-              // 顯示工具提示
               if (tooltip) {
                 const properties = d.properties;
                 tooltip.innerHTML = `
@@ -427,18 +727,13 @@
                   <div>Point Count: ${properties.point_count || 0}</div>
                   <div>Level: ${properties.level || 'N/A'}</div>
                 `;
-
-                // 獲取滑鼠位置
                 const [mouseX, mouseY] = d3.pointer(event, mapContainer.value);
-
-                // 設置工具提示位置
                 tooltip.style.left = mouseX + 10 + 'px';
                 tooltip.style.top = mouseY - 10 + 'px';
                 tooltip.style.opacity = 1;
               }
             })
             .on('mousemove', function (event) {
-              // 更新工具提示位置
               if (tooltip) {
                 const [mouseX, mouseY] = d3.pointer(event, mapContainer.value);
                 tooltip.style.left = mouseX + 10 + 'px';
@@ -446,28 +741,17 @@
               }
             })
             .on('mouseout', function (event, d) {
-              // 恢復原始透明度
               const level = d.properties.level || 0;
-              const opacityMap = {
-                0: 0.5, // level 0 淡灰色，較透明
-                1: 0.7,
-                2: 0.75,
-                3: 0.8,
-                4: 0.85,
-                5: 0.9,
-              };
-              d3.select(this).attr('fill-opacity', opacityMap[level] || opacityMap[0]);
-
-              // 隱藏工具提示
+              d3.select(this).attr('fill-opacity', getOpacityByLevel(level));
               if (tooltip) {
                 tooltip.style.opacity = 0;
               }
             });
 
-          console.log('[MapTab] 登革熱網格 GeoJSON 繪製完成');
+          console.log('[MapTab] 登革熱網格（地圖模式）繪製完成');
           console.log('  - 最大 level:', maxLevel);
         } catch (error) {
-          console.error('[MapTab] 登革熱網格 GeoJSON 繪製失敗:', error);
+          console.error('[MapTab] 登革熱網格繪製失敗:', error);
         }
       };
 
@@ -539,53 +823,87 @@
 
       /**
        * 🚀 初始化地圖
-       * 創建地圖並載入初始數據
+       * 根據初始顯示模式創建對應的視圖
        */
       const initMap = async () => {
         let attempts = 0;
         const maxAttempts = 20;
 
-        // 同時載入兩個數據集
-        console.log('[MapTab] 開始載入所有數據集...');
-        const [countyLoaded, dengueLoaded] = await Promise.all([
-          loadCountyData(),
-          loadDengueData(),
-        ]);
+        // 根據顯示模式載入不同的數據
+        if (displayMode.value === 'map') {
+          // 地圖模式：需要載入縣市界線和登革熱數據
+          console.log('[MapTab] 開始載入地圖模式數據...');
+          const [countyLoaded, dengueLoaded] = await Promise.all([
+            loadCountyData(),
+            loadDengueData(),
+          ]);
 
-        if (!countyLoaded) {
-          console.error('[MapTab] 無法載入直轄市、縣(市)界線數據');
-          return;
-        }
-
-        if (!dengueLoaded) {
-          console.error('[MapTab] 無法載入登革熱網格數據');
-          return;
-        }
-
-        console.log('[MapTab] 所有數據載入完成，開始創建地圖');
-
-        const tryCreateMap = async () => {
-          if (attempts >= maxAttempts) {
-            console.error('[MapTab] 地圖初始化失敗，已達到最大嘗試次數');
+          if (!countyLoaded) {
+            console.error('[MapTab] 無法載入直轄市、縣(市)界線數據');
             return;
           }
 
-          attempts++;
-          console.log(`[MapTab] 嘗試創建地圖 (${attempts}/${maxAttempts})`);
-
-          if (createMap()) {
-            console.log('[MapTab] 地圖創建成功，開始繪製圖層');
-            // 先繪製縣市界線（底層）
-            drawCounties();
-            // 再繪製登革熱網格（上層）
-            drawDengueGrid();
-          } else {
-            console.log('[MapTab] 地圖創建失敗，100ms 後重試');
-            setTimeout(tryCreateMap, 100);
+          if (!dengueLoaded) {
+            console.error('[MapTab] 無法載入登革熱網格數據');
+            return;
           }
-        };
 
-        tryCreateMap();
+          console.log('[MapTab] 所有數據載入完成，開始創建地圖');
+
+          const tryCreateMap = async () => {
+            if (attempts >= maxAttempts) {
+              console.error('[MapTab] 地圖初始化失敗，已達到最大嘗試次數');
+              return;
+            }
+
+            attempts++;
+            console.log(`[MapTab] 嘗試創建地圖 (${attempts}/${maxAttempts})`);
+
+            if (createMap()) {
+              console.log('[MapTab] 地圖創建成功，開始繪製圖層');
+              // 先繪製縣市界線（底層）
+              drawCounties();
+              // 再繪製登革熱網格（上層）
+              drawDengueGrid();
+            } else {
+              console.log('[MapTab] 地圖創建失敗，100ms 後重試');
+              setTimeout(tryCreateMap, 100);
+            }
+          };
+
+          tryCreateMap();
+        } else {
+          // Grid 模式：只需要載入登革熱數據，不需要縣市界線
+          console.log('[MapTab] 開始載入網格模式數據...');
+          const dengueLoaded = await loadDengueData();
+
+          if (!dengueLoaded) {
+            console.error('[MapTab] 無法載入登革熱網格數據');
+            return;
+          }
+
+          console.log('[MapTab] 數據載入完成，開始創建網格畫布');
+
+          const tryCreateGrid = async () => {
+            if (attempts >= maxAttempts) {
+              console.error('[MapTab] 網格初始化失敗，已達到最大嘗試次數');
+              return;
+            }
+
+            attempts++;
+            console.log(`[MapTab] 嘗試創建網格畫布 (${attempts}/${maxAttempts})`);
+
+            if (createGridCanvas()) {
+              console.log('[MapTab] 網格畫布創建成功，開始繪製網格');
+              drawGridOnly();
+            } else {
+              console.log('[MapTab] 網格畫布創建失敗，100ms 後重試');
+              setTimeout(tryCreateGrid, 100);
+            }
+          };
+
+          tryCreateGrid();
+        }
       };
 
       // 🧹 生命週期：組件掛載
@@ -619,6 +937,8 @@
       return {
         mapContainer,
         mapContainerId,
+        displayMode,
+        toggleDisplayMode,
       };
     },
   };
@@ -629,6 +949,36 @@
   <div id="map-container" class="h-100 w-100 position-relative bg-transparent z-0">
     <!-- 🗺️ Leaflet 地圖容器 -->
     <div :id="mapContainerId" ref="mapContainer" class="h-100 w-100"></div>
+
+    <!-- 🎛️ 左側中間控制面板 -->
+    <div
+      class="position-absolute"
+      style="top: 50%; left: 0; transform: translateY(-50%); z-index: 1000; padding: 1rem"
+    >
+      <div class="bg-dark bg-opacity-75 rounded-3 p-3">
+        <!-- 🎛️ 顯示模式選擇區域 -->
+        <div class="">
+          <div class="d-flex flex-column gap-1">
+            <button
+              type="button"
+              class="btn border-0 my-country-btn my-font-sm-white px-4 py-3"
+              :class="[displayMode === 'map' ? 'active' : '']"
+              @click="toggleDisplayMode('map')"
+            >
+              地圖模式
+            </button>
+            <button
+              type="button"
+              class="btn border-0 my-country-btn my-font-sm-white px-4 py-3"
+              :class="[displayMode === 'grid' ? 'active' : '']"
+              @click="toggleDisplayMode('grid')"
+            >
+              網格模式
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
