@@ -526,27 +526,7 @@
     <!-- 🗺️ Leaflet 地圖容器 -->
     <div :id="mapContainerId" ref="mapContainer" class="h-100 w-100"></div>
 
-    <!-- 🎛️ 左側中間控制面板 -->
-    <div
-      class="position-absolute"
-      style="top: 50%; left: 0; transform: translateY(-50%); z-index: 1000; padding: 1rem"
-    >
-      <div class="bg-dark bg-opacity-75 rounded-3 p-3">
-        <!-- 🎛️ 顯示模式選擇區域 -->
-        <div class="">
-          <div class="d-flex flex-column gap-1">
-            <button
-              type="button"
-              class="btn border-0 my-country-btn my-font-sm-white px-4 py-3"
-              :class="[displayMode === 'map' ? 'active' : '']"
-              @click="toggleDisplayMode('map')"
-            >
-              地圖模式
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    
   </div>
 </template>
 
