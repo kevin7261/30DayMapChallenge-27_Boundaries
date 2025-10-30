@@ -325,12 +325,25 @@
 
         // 根據最高得票率決定顏色
         if (maxVote === vote1) {
-          return '#ffffff'; // 白色 - 柯文哲 吳欣盈
+          return '#00A8AC'; // 柯文哲 吳欣盈 - 柔和青藍
         } else if (maxVote === vote2) {
-          return '#4caf50'; // 綠色 - 賴清德 蕭美琴
+          return '#4CAF50'; // 賴清德 蕭美琴 - 清新綠
         } else {
-          return '#2196f3'; // 藍色 - 侯友宜 趙少康
+          return '#1976D2'; // 侯友宜 趙少康 - 深藍
         }
+      };
+
+      /**
+       * 根據最高得票率回傳透明度 0~1
+       */
+      const getOpacityByVotePercentage = (properties) => {
+        const vote1 = properties['(1) 得票率 (%)'] || 0;
+        const vote2 = properties['(2) 得票率 (%)'] || 0;
+        const vote3 = properties['(3) 得票率 (%)'] || 0;
+        const maxVote = Math.max(vote1, vote2, vote3);
+        // 限制到 0.15~0.95 範圍避免過亮或過暗，可調整
+        const opacity = Math.max(0.15, Math.min(0.95, maxVote / 100));
+        return opacity;
       };
 
       /**
@@ -429,7 +442,8 @@
             .attr('d', path)
             .attr('class', 'county')
             .attr('fill', (d) => getColorByVotePercentage(d.properties)) // 根據得票率填充顏色
-            .attr('stroke', '#333333') // 深灰色邊框
+            .attr('fill-opacity', (d) => getOpacityByVotePercentage(d.properties))
+            .attr('stroke', '#ffffff') // 白色邊框
             .attr('stroke-width', 0.5)
             .attr('stroke-opacity', 0.8)
             .on('mouseover', function (event, d) {
@@ -438,12 +452,15 @@
               const vote1 = properties['(1) 得票率 (%)'] || 0;
               const vote2 = properties['(2) 得票率 (%)'] || 0;
               const vote3 = properties['(3) 得票率 (%)'] || 0;
+              const count1 = properties['(1) 柯文哲 吳欣盈'] || 0;
+              const count2 = properties['(2) 賴清德 蕭美琴'] || 0;
+              const count3 = properties['(3) 侯友宜 趙少康'] || 0;
 
               const tooltipContent = `
                 <div style="font-weight: bold; margin-bottom: 4px;">${properties.COUNTYNAME} ${properties.TOWNNAME}</div>
-                <div style="color: #ffffff;">柯文哲 吳欣盈: ${vote1.toFixed(1)}%</div>
-                <div style="color: #4caf50;">賴清德 蕭美琴: ${vote2.toFixed(1)}%</div>
-                <div style="color: #2196f3;">侯友宜 趙少康: ${vote3.toFixed(1)}%</div>
+                <div style="color: #00A8AC;">柯文哲 吳欣盈: ${vote1.toFixed(1)}% (${count1.toLocaleString()}票)</div>
+                <div style="color: #4CAF50;">賴清德 蕭美琴: ${vote2.toFixed(1)}% (${count2.toLocaleString()}票)</div>
+                <div style="color: #1976D2;">侯友宜 趙少康: ${vote3.toFixed(1)}% (${count3.toLocaleString()}票)</div>
               `;
 
               tooltip.innerHTML = tooltipContent;
@@ -507,7 +524,7 @@
                 .append('svg')
                 .attr('width', width)
                 .attr('height', height)
-                .style('background', '#f5f5f5');
+                .style('background', '#ffffff');
 
               projection = d3
                 .geoMercator()
@@ -573,7 +590,7 @@
             .append('svg')
             .attr('width', width)
             .attr('height', height)
-            .style('background', '#f5f5f5'); // 淺灰色背景
+            .style('background', '#ffffff'); // 純白色背景
 
           // 創建投影 - 麥卡托投影，聚焦在台灣
           projection = d3
@@ -721,11 +738,11 @@
 
   #map-container {
     overflow: hidden;
-    background: #f5f5f5; /* 淺灰色背景，確保容器底色不是白色 */
+    background: #ffffff; /* 純白色背景 */
   }
 
   :deep(.leaflet-container) {
-    background: #f5f5f5; /* 淺灰色背景 */
+    background: #ffffff; /* 純白色背景 */
   }
 
   :deep(.leaflet-popup-content-wrapper) {
