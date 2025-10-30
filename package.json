@@ -1,8 +1,8 @@
 {
-  "name": "30DayMapChallenge-16_Cell",
+  "name": "30DayMapChallenge-27_Boundaries",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://kevin7261.github.io/30DayMapChallenge-16_Cell",
+  "homepage": "https://kevin7261.github.io/30DayMapChallenge-27_Boundaries",
   "scripts": {
     "serve": "vue-cli-service serve --port 8080",
     "build": "vue-cli-service build",
@@ -47,10 +47,7 @@
       "node": true,
       "es2022": true
     },
-    "extends": [
-      "plugin:vue/vue3-essential",
-      "eslint:recommended"
-    ],
+    "extends": ["plugin:vue/vue3-essential", "eslint:recommended"],
     "parserOptions": {
       "parser": "@babel/eslint-parser",
       "requireConfigFile": false,
@@ -64,10 +61,5 @@
       "vue/multi-word-component-names": "off"
     }
   },
-  "browserslist": [
-    "> 1%",
-    "last 2 versions",
-    "not dead",
-    "not ie 11"
-  ]
+  "browserslist": ["> 1%", "last 2 versions", "not dead", "not ie 11"]
 }
