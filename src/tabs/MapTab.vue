@@ -14,30 +14,44 @@
    * 1. 縣市邊界渲染：
    *    ✓ 載入 總統_得票地圖_合併.geojson
    *    ✓ 繪製所有台灣直轄市、縣(市)界線
+   *    ✓ 根據最高得票率進行顏色編碼
    *
-   * 2. 登革熱網格渲染：
+   * 2. 歷史邊界渲染：
+   *    ✓ 載入 乾隆臺灣番界.geojson
+   *    ✓ 繪製乾隆十五年及二十五年番界線
+   *    ✓ 淺灰色半透明填充作為背景層
+   *
+   * 3. 登革熱網格渲染：
    *    ✓ 載入 dengue_grid_counts_1km_2023_land_only.geojson
    *    ✓ 根據 level 屬性繪製5級風險等級網格
    *    ✓ 只顯示病例數 > 0 的網格
    *    ✓ 使用5級色票：深藍(1) → 綠(2) → 黃橙(3) → 橙(4) → 紅(5)（最上層）
    *
-   * 3. 視覺元素：
-   *    ✓ 縣市界線：淺灰細邊框，無填充（底層）
+   * 4. 視覺元素：
+   *    ✓ 歷史邊界：淺灰色半透明填充，中灰邊框（底層）
+   *    ✓ 縣市界線：根據最高得票率填充顏色，深灰邊框（中層）
    *    ✓ 登革熱網格：5級色票填充，無邊框（最上層）
    *    ✓ 白色地圖背景
    *
-   * 4. 交互功能：
+   * 5. 交互功能：
    *    ✓ 滾輪縮放控制
    *    ✓ 拖動平移導航
-   *    ✓ 滑鼠懸停顯示網格屬性資訊
-   *    ✓ 網格高亮效果
+   *    ✓ 滑鼠懸停顯示得票率資訊
+   *    ✓ 縣市區域高亮效果
    *
    * ─────────────────────────────────────────────────────────────────────────
    * 🎨 配色主題
    * ─────────────────────────────────────────────────────────────────────────
    * 白色      #ffffff  → 地圖背景
-   * 淺灰色    #cccccc  → 縣市邊框
-   * 無填充    none     → 縣市區域
+   * 歷史邊界：
+   *   淺灰色  #e0e0e0  → 乾隆番界填充
+   *   中灰色  #999999  → 乾隆番界邊框
+   * 縣市邊界：
+   *   深灰色  #333333  → 縣市邊框
+   * 得票率顏色編碼：
+   *   白色    #ffffff  → 柯文哲 吳欣盈 (最高得票率)
+   *   綠色    #4caf50  → 賴清德 蕭美琴 (最高得票率)
+   *   藍色    #2196f3  → 侯友宜 趙少康 (最高得票率)
    * 5級色票            → 登革熱風險等級（最上層）
    *   Level 1  #1a237e → 深藍色
    *   Level 2  #4caf50 → 綠色
@@ -56,6 +70,7 @@
    * 📁 數據來源
    * ─────────────────────────────────────────────────────────────────────────
    * 縣市邊界：總統_得票地圖_合併.geojson
+   * 歷史邊界：乾隆臺灣番界.geojson
    * 路徑：public/data/geojson/
    *
    * ─────────────────────────────────────────────────────────────────────────
@@ -205,6 +220,13 @@
       const countyData = ref(null);
 
       /**
+       * 乾隆臺灣番界 GeoJSON 數據
+       * 來源：乾隆臺灣番界.geojson
+       * @type {Ref<Object|null>}
+       */
+      const historicalBoundaryData = ref(null);
+
+      /**
        * 📥 載入直轄市、縣(市)界線 GeoJSON 數據
        */
       const loadCountyData = async () => {
@@ -235,6 +257,36 @@
       };
 
       /**
+       * 📥 載入乾隆臺灣番界 GeoJSON 數據
+       */
+      const loadHistoricalBoundaryData = async () => {
+        try {
+          console.log('[MapTab] 開始載入乾隆臺灣番界 GeoJSON 數據...');
+
+          // 載入歷史邊界 GeoJSON 檔案
+          const historicalResponse = await fetch(
+            `${process.env.BASE_URL}data/geojson/乾隆臺灣番界.geojson`
+          );
+
+          // 檢查響應
+          if (!historicalResponse.ok) {
+            throw new Error(`乾隆臺灣番界數據載入失敗: HTTP ${historicalResponse.status}`);
+          }
+
+          // 解析 JSON
+          historicalBoundaryData.value = await historicalResponse.json();
+
+          console.log('[MapTab] 乾隆臺灣番界數據載入成功');
+          console.log('  - 邊界線數量:', historicalBoundaryData.value.features?.length || 0);
+
+          return true;
+        } catch (error) {
+          console.error('[MapTab] 乾隆臺灣番界數據載入失敗:', error);
+          return false;
+        }
+      };
+
+      /**
        * 🛠️ 創建工具提示元素
        */
       const createTooltip = () => {
@@ -256,6 +308,85 @@
 
         mapContainer.value.appendChild(tooltip);
         console.log('[MapTab] 工具提示元素創建成功');
+      };
+
+      /**
+       * 🎨 根據得票率決定顏色
+       * @param {Object} properties - GeoJSON 屬性
+       * @returns {string} 顏色代碼
+       */
+      const getColorByVotePercentage = (properties) => {
+        const vote1 = properties['(1) 得票率 (%)'] || 0;
+        const vote2 = properties['(2) 得票率 (%)'] || 0;
+        const vote3 = properties['(3) 得票率 (%)'] || 0;
+
+        // 找出最高得票率
+        const maxVote = Math.max(vote1, vote2, vote3);
+
+        // 根據最高得票率決定顏色
+        if (maxVote === vote1) {
+          return '#ffffff'; // 白色 - 柯文哲 吳欣盈
+        } else if (maxVote === vote2) {
+          return '#4caf50'; // 綠色 - 賴清德 蕭美琴
+        } else {
+          return '#2196f3'; // 藍色 - 侯友宜 趙少康
+        }
+      };
+
+      /**
+       * 🗺️ 繪製乾隆臺灣番界
+       */
+      const drawHistoricalBoundary = () => {
+        if (!g || !historicalBoundaryData.value) {
+          console.error(
+            '[MapTab] 無法繪製乾隆臺灣番界: g=',
+            !!g,
+            'historicalBoundaryData=',
+            !!historicalBoundaryData.value
+          );
+          return;
+        }
+
+        try {
+          console.log('[MapTab] 開始繪製乾隆臺灣番界 GeoJSON');
+
+          // 繪製歷史邊界線
+          g.selectAll('.historical-boundary')
+            .data(historicalBoundaryData.value.features)
+            .enter()
+            .append('path')
+            .attr('d', path)
+            .attr('class', 'historical-boundary')
+            .attr('fill', '#e0e0e0') // 淺灰色填充
+            .attr('stroke', '#999999') // 中灰色邊框
+            .attr('stroke-width', 1)
+            .attr('stroke-opacity', 0.8)
+            .attr('fill-opacity', 0.3) // 半透明填充
+            .on('mouseover', function (event, d) {
+              // 顯示工具提示
+              const properties = d.properties;
+              const tooltipContent = `
+                <div style="font-weight: bold; margin-bottom: 4px;">${properties.name}</div>
+                <div style="color: #666;">${properties.Note}</div>
+              `;
+
+              tooltip.innerHTML = tooltipContent;
+              tooltip.style.opacity = '1';
+            })
+            .on('mousemove', function (event) {
+              // 更新工具提示位置
+              tooltip.style.left = event.pageX + 10 + 'px';
+              tooltip.style.top = event.pageY - 10 + 'px';
+            })
+            .on('mouseout', function () {
+              // 隱藏工具提示
+              tooltip.style.opacity = '0';
+            });
+
+          console.log('[MapTab] 乾隆臺灣番界 GeoJSON 繪製完成');
+        } catch (error) {
+          console.error('[MapTab] 乾隆臺灣番界 GeoJSON 繪製失敗:', error);
+        }
       };
 
       /**
@@ -282,10 +413,36 @@
             .append('path')
             .attr('d', path)
             .attr('class', 'county')
-            .attr('fill', 'none') // 不填充
-            .attr('stroke', '#cccccc') // 淺灰色邊框
+            .attr('fill', (d) => getColorByVotePercentage(d.properties)) // 根據得票率填充顏色
+            .attr('stroke', '#333333') // 深灰色邊框
             .attr('stroke-width', 0.5)
-            .attr('stroke-opacity', 0.6);
+            .attr('stroke-opacity', 0.8)
+            .on('mouseover', function (event, d) {
+              // 顯示工具提示
+              const properties = d.properties;
+              const vote1 = properties['(1) 得票率 (%)'] || 0;
+              const vote2 = properties['(2) 得票率 (%)'] || 0;
+              const vote3 = properties['(3) 得票率 (%)'] || 0;
+
+              const tooltipContent = `
+                <div style="font-weight: bold; margin-bottom: 4px;">${properties.COUNTYNAME} ${properties.TOWNNAME}</div>
+                <div style="color: #ffffff;">柯文哲 吳欣盈: ${vote1.toFixed(1)}%</div>
+                <div style="color: #4caf50;">賴清德 蕭美琴: ${vote2.toFixed(1)}%</div>
+                <div style="color: #2196f3;">侯友宜 趙少康: ${vote3.toFixed(1)}%</div>
+              `;
+
+              tooltip.innerHTML = tooltipContent;
+              tooltip.style.opacity = '1';
+            })
+            .on('mousemove', function (event) {
+              // 更新工具提示位置
+              tooltip.style.left = event.pageX + 10 + 'px';
+              tooltip.style.top = event.pageY - 10 + 'px';
+            })
+            .on('mouseout', function () {
+              // 隱藏工具提示
+              tooltip.style.opacity = '0';
+            });
 
           console.log('[MapTab] 直轄市、縣(市)界線 GeoJSON 繪製完成');
         } catch (error) {
@@ -303,9 +460,12 @@
         console.log('[MapTab] 切換顯示模式: map (grid 已停用)');
 
         if (displayMode.value === 'map') {
-          // 地圖模式：需要地圖投影，載入縣市界線
+          // 地圖模式：需要地圖投影，載入縣市界線和歷史邊界
           if (!countyData.value) {
             await loadCountyData();
+          }
+          if (!historicalBoundaryData.value) {
+            await loadHistoricalBoundaryData();
           }
 
           // 清除舊的 SVG（如果從其他模式切換過來）
@@ -364,7 +524,11 @@
               svg.call(zoom.transform, d3.zoomIdentity);
             }
           }
-          // 繪製縣市界線
+          // 先繪製歷史邊界（底層）
+          if (historicalBoundaryData.value) {
+            drawHistoricalBoundary();
+          }
+          // 再繪製縣市界線（上層）
           drawCounties();
         }
       };
@@ -448,13 +612,18 @@
 
         // 根據顯示模式載入不同的數據
         if (displayMode.value === 'map') {
-          // 地圖模式：僅載入縣市界線數據
+          // 地圖模式：載入縣市界線和歷史邊界數據
           console.log('[MapTab] 開始載入地圖模式數據...');
           const countyLoaded = await loadCountyData();
+          const historicalLoaded = await loadHistoricalBoundaryData();
 
           if (!countyLoaded) {
             console.error('[MapTab] 無法載入縣市界線數據');
             return;
+          }
+
+          if (!historicalLoaded) {
+            console.warn('[MapTab] 無法載入乾隆臺灣番界數據，將只顯示縣市界線');
           }
 
           console.log('[MapTab] 數據載入完成，開始創建地圖');
@@ -470,7 +639,11 @@
 
             if (createMap()) {
               console.log('[MapTab] 地圖創建成功，開始繪製圖層');
-              // 繪製縣市界線
+              // 先繪製歷史邊界（底層）
+              if (historicalBoundaryData.value) {
+                drawHistoricalBoundary();
+              }
+              // 再繪製縣市界線（上層）
               drawCounties();
             } else {
               console.log('[MapTab] 地圖創建失敗，100ms 後重試');
@@ -560,8 +733,16 @@
   }
 
   :deep(.map-tooltip) {
-    background-color: #333; /* 深灰色背景 */
+    background-color: rgba(0, 0, 0, 0.9); /* 深色半透明背景 */
     color: #fff; /* 白色文字 */
-    border: none; /* 無邊框 */
+    border: 2px solid #fff; /* 白色邊框 */
+    border-radius: 8px; /* 圓角 */
+    padding: 12px; /* 內邊距 */
+    font-size: 14px; /* 字體大小 */
+    font-family: 'Arial', sans-serif; /* 字體 */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); /* 陰影 */
+    z-index: 1000; /* 確保在最上層 */
+    max-width: 250px; /* 最大寬度 */
+    line-height: 1.4; /* 行高 */
   }
 </style>
