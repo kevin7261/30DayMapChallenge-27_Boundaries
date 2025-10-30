@@ -1,4 +1,4 @@
-# 🌍 30 Day Map Challenge - Day 16: Cell
+# 🌍 30 Day Map Challenge - Day 27: Boundaries
 
 一個基於 Vue 3 和 D3.js 的互動式世界地圖視覺化應用，展示參展國家分布。
 
@@ -69,9 +69,9 @@ public/
 1. **克隆專案**
 
    ```bash
-   git clone https://github.com/kevin7261/30DayMapChallenge-16_Cell.git
-   cd 30DayMapChallenge-16_Cell
-   cd website/30DayMapChallenge-16_Cell
+   git clone https://github.com/kevin7261/30DayMapChallenge-27_Boundaries.git
+   cd 30DayMapChallenge-27_Boundaries
+   cd website/30DayMapChallenge-27_Boundaries
    ```
 
 2. **安裝依賴**
@@ -86,7 +86,7 @@ public/
    npm run serve
    ```
 
-   瀏覽器訪問：`http://localhost:8080/30DayMapChallenge-16_Cell/`
+   瀏覽器訪問：`http://localhost:8080/30DayMapChallenge-27_Boundaries/`
 
 4. **構建生產版本**
 
@@ -169,8 +169,8 @@ const southLatLimit = -60; // 南緯限制
 
 ## 🌐 線上展示
 
-- **GitHub Pages**: https://kevin7261.github.io/30DayMapChallenge-16_Cell/
-- **專案倉庫**: https://github.com/kevin7261/30DayMapChallenge-16_Cell
+- **GitHub Pages**: https://kevin7261.github.io/30DayMapChallenge-27_Boundaries/
+- **專案倉庫**: https://github.com/kevin7261/30DayMapChallenge-27_Boundaries
 
 ## 📝 開發指令
 
@@ -215,4 +215,4 @@ npm run deploy
 
 ---
 
-**#30DayMapChallenge** 🗺️ Day 16: Cell
+**#30DayMapChallenge** 🗺️ Day 27: Boundaries
