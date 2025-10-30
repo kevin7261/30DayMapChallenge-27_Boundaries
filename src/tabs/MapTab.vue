@@ -226,6 +226,8 @@
        */
       let globalMinWinningPct = 100;
       let globalMaxWinningPct = 0;
+      let globalMinWinnerFeature = null; // { COUNTYNAME, TOWNNAME, pct }
+      let globalMaxWinnerFeature = null; // { COUNTYNAME, TOWNNAME, pct }
 
       const computeWinningVoteRange = () => {
         globalMinWinningPct = 100;
@@ -237,12 +239,37 @@
           const v2 = p['(2) 得票率 (%)'] || 0;
           const v3 = p['(3) 得票率 (%)'] || 0;
           const win = Math.max(v1, v2, v3);
-          if (win < globalMinWinningPct) globalMinWinningPct = win;
-          if (win > globalMaxWinningPct) globalMaxWinningPct = win;
+          if (win < globalMinWinningPct) {
+            globalMinWinningPct = win;
+            globalMinWinnerFeature = {
+              COUNTYNAME: p.COUNTYNAME,
+              TOWNNAME: p.TOWNNAME,
+              pct: win,
+            };
+          }
+          if (win > globalMaxWinningPct) {
+            globalMaxWinningPct = win;
+            globalMaxWinnerFeature = {
+              COUNTYNAME: p.COUNTYNAME,
+              TOWNNAME: p.TOWNNAME,
+              pct: win,
+            };
+          }
         }
         // 邊界保護
         if (globalMinWinningPct > globalMaxWinningPct) {
           globalMinWinningPct = globalMaxWinningPct;
+        }
+        // 輸出摘要到主控台
+        if (globalMaxWinnerFeature) {
+          console.log(
+            `[MapTab] 最高勝出得票率: ${globalMaxWinnerFeature.pct.toFixed(2)}% → 100% opacity @ ${globalMaxWinnerFeature.COUNTYNAME} ${globalMaxWinnerFeature.TOWNNAME}`
+          );
+        }
+        if (globalMinWinnerFeature) {
+          console.log(
+            `[MapTab] 最低勝出得票率: ${globalMinWinnerFeature.pct.toFixed(2)}% → 20% opacity @ ${globalMinWinnerFeature.COUNTYNAME} ${globalMinWinnerFeature.TOWNNAME}`
+          );
         }
       };
 
