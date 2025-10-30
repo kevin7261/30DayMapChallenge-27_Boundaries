@@ -220,6 +220,33 @@
       const countyData = ref(null);
 
       /**
+       * 全域勝出得票率範圍（用于透明度正規化）
+       * min: 所有鄉鎮中勝出者得票率的最小值
+       * max: 所有鄉鎮中勝出者得票率的最大值
+       */
+      let globalMinWinningPct = 100;
+      let globalMaxWinningPct = 0;
+
+      const computeWinningVoteRange = () => {
+        globalMinWinningPct = 100;
+        globalMaxWinningPct = 0;
+        if (!countyData.value?.features) return;
+        for (const f of countyData.value.features) {
+          const p = f.properties || {};
+          const v1 = p['(1) 得票率 (%)'] || 0;
+          const v2 = p['(2) 得票率 (%)'] || 0;
+          const v3 = p['(3) 得票率 (%)'] || 0;
+          const win = Math.max(v1, v2, v3);
+          if (win < globalMinWinningPct) globalMinWinningPct = win;
+          if (win > globalMaxWinningPct) globalMaxWinningPct = win;
+        }
+        // 邊界保護
+        if (globalMinWinningPct > globalMaxWinningPct) {
+          globalMinWinningPct = globalMaxWinningPct;
+        }
+      };
+
+      /**
        * 乾隆臺灣番界 GeoJSON 數據
        * 來源：乾隆臺灣番界.geojson
        * @type {Ref<Object|null>}
@@ -248,6 +275,9 @@
 
           console.log('[MapTab] 直轄市、縣(市)界線數據載入成功');
           console.log('  - 縣市數量:', countyData.value.features?.length || 0);
+
+          // 計算全域勝出得票率範圍供透明度映射
+          computeWinningVoteRange();
 
           return true;
         } catch (error) {
@@ -334,15 +364,22 @@
       };
 
       /**
-       * 根據最高得票率回傳透明度 0~1
+       * 根據最高得票率回傳透明度 0.2~1.0
+       * 最高得票率 = 100% opacity，最低得票率 = 20% opacity
        */
       const getOpacityByVotePercentage = (properties) => {
         const vote1 = properties['(1) 得票率 (%)'] || 0;
         const vote2 = properties['(2) 得票率 (%)'] || 0;
         const vote3 = properties['(3) 得票率 (%)'] || 0;
         const maxVote = Math.max(vote1, vote2, vote3);
-        // 限制到 0.15~0.95 範圍避免過亮或過暗，可調整
-        const opacity = Math.max(0.15, Math.min(0.95, maxVote / 100));
+
+        // 以全域範圍做正規化：min → 0.2、max → 1.0
+        const minV = globalMinWinningPct;
+        const maxV = globalMaxWinningPct;
+        const range = Math.max(0, maxV - minV);
+        if (range === 0) return 1.0; // 所有區相同得票率，給滿不透明
+        const normalized = (maxVote - minV) / range; // 0~1
+        const opacity = 0.2 + normalized * 0.8;
         return opacity;
       };
 
@@ -456,8 +493,29 @@
               const count2 = properties['(2) 賴清德 蕭美琴'] || 0;
               const count3 = properties['(3) 侯友宜 趙少康'] || 0;
 
+              // 找出最高得票率和對應的候選人
+              const maxVote = Math.max(vote1, vote2, vote3);
+              let winnerName = '';
+              if (maxVote === vote1) winnerName = '柯文哲 吳欣盈';
+              else if (maxVote === vote2) winnerName = '賴清德 蕭美琴';
+              else winnerName = '侯友宜 趙少康';
+
+              // 計算透明度（使用全域範圍正規化）
+              const minV = globalMinWinningPct;
+              const maxV = globalMaxWinningPct;
+              const range = Math.max(0, maxV - minV);
+              const normalized = range === 0 ? 1 : (maxVote - minV) / range;
+              const opacity = 0.2 + normalized * 0.8;
+
+              // 邊界高亮為紅色
+              d3.select(this).attr('stroke', '#ff0000').attr('stroke-width', 1);
+
               const tooltipContent = `
                 <div style="font-weight: bold; margin-bottom: 4px;">${properties.COUNTYNAME} ${properties.TOWNNAME}</div>
+                <div style="margin-bottom: 6px; padding: 4px; background: rgba(0,0,0,0.1); border-radius: 3px;">
+                  <strong>最高得票：${winnerName}</strong><br>
+                  <small>透明度：${(opacity * 100).toFixed(1)}%</small>
+                </div>
                 <div style="color: #00A8AC;">柯文哲 吳欣盈: ${vote1.toFixed(1)}% (${count1.toLocaleString()}票)</div>
                 <div style="color: #4CAF50;">賴清德 蕭美琴: ${vote2.toFixed(1)}% (${count2.toLocaleString()}票)</div>
                 <div style="color: #1976D2;">侯友宜 趙少康: ${vote3.toFixed(1)}% (${count3.toLocaleString()}票)</div>
@@ -474,6 +532,8 @@
             .on('mouseout', function () {
               // 隱藏工具提示
               tooltip.style.opacity = '0';
+              // 邊界顏色還原為白色
+              d3.select(this).attr('stroke', '#ffffff').attr('stroke-width', 0.5);
             });
 
           console.log('[MapTab] 直轄市、縣(市)界線 GeoJSON 繪製完成');
