@@ -378,6 +378,7 @@
         const maxV = globalMaxWinningPct;
         const range = Math.max(0, maxV - minV);
         if (range === 0) return 1.0; // 所有區相同得票率，給滿不透明
+        if (Math.abs(maxVote - maxV) < 1e-9) return 1.0; // 全域最高者強制 100%
         const normalized = (maxVote - minV) / range; // 0~1
         const opacity = 0.2 + normalized * 0.8;
         return opacity;
@@ -504,8 +505,15 @@
               const minV = globalMinWinningPct;
               const maxV = globalMaxWinningPct;
               const range = Math.max(0, maxV - minV);
-              const normalized = range === 0 ? 1 : (maxVote - minV) / range;
-              const opacity = 0.2 + normalized * 0.8;
+              let opacity = 1.0;
+              if (range !== 0) {
+                if (Math.abs(maxVote - maxV) < 1e-9) {
+                  opacity = 1.0;
+                } else {
+                  const normalized = (maxVote - minV) / range;
+                  opacity = 0.2 + normalized * 0.8;
+                }
+              }
 
               // 邊界高亮為紅色
               d3.select(this).attr('stroke', '#ff0000').attr('stroke-width', 1);
