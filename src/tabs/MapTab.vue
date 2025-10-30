@@ -31,7 +31,7 @@
    *    ✓ 歷史邊界：淺灰色半透明填充，中灰邊框（底層）
    *    ✓ 縣市界線：根據最高得票率填充顏色，深灰邊框（中層）
    *    ✓ 登革熱網格：5級色票填充，無邊框（最上層）
-   *    ✓ 白色地圖背景
+   *    ✓ 淺灰色地圖背景
    *
    * 5. 交互功能：
    *    ✓ 滾輪縮放控制
@@ -42,7 +42,7 @@
    * ─────────────────────────────────────────────────────────────────────────
    * 🎨 配色主題
    * ─────────────────────────────────────────────────────────────────────────
-   * 白色      #ffffff  → 地圖背景
+   * 淺灰色    #f5f5f5  → 地圖背景
    * 歷史邊界：
    *   淺灰色  #e0e0e0  → 乾隆番界填充
    *   中灰色  #999999  → 乾隆番界邊框
@@ -350,18 +350,33 @@
         try {
           console.log('[MapTab] 開始繪製乾隆臺灣番界 GeoJSON');
 
-          // 繪製歷史邊界線
+          const getHistoricalStroke = (name) => {
+            if (name === '紅線') return '#e53935'; // 紅
+            if (name === '藍線') return '#1e88e5'; // 藍
+            if (name === '紫線') return '#8e24aa'; // 紫
+            if (name && name.includes('藍線暫定界')) return '#1e88e5'; // 暫定界用藍色
+            return '#999999';
+          };
+
+          const getDashArray = (name) => {
+            if (name && name.includes('暫定界')) return '6,4';
+            return null;
+          };
+
+          // 繪製歷史邊界線（以 polyline 呈現，無填色）
           g.selectAll('.historical-boundary')
             .data(historicalBoundaryData.value.features)
             .enter()
             .append('path')
             .attr('d', path)
             .attr('class', 'historical-boundary')
-            .attr('fill', '#e0e0e0') // 淺灰色填充
-            .attr('stroke', '#999999') // 中灰色邊框
-            .attr('stroke-width', 1)
-            .attr('stroke-opacity', 0.8)
-            .attr('fill-opacity', 0.3) // 半透明填充
+            .attr('fill', 'none')
+            .attr('stroke', (d) => getHistoricalStroke(d.properties?.name))
+            .attr('stroke-width', 2)
+            .attr('stroke-opacity', 0.95)
+            .attr('stroke-linecap', 'round')
+            .attr('stroke-linejoin', 'round')
+            .attr('stroke-dasharray', (d) => getDashArray(d.properties?.name))
             .on('mouseover', function (event, d) {
               // 顯示工具提示
               const properties = d.properties;
@@ -492,7 +507,7 @@
                 .append('svg')
                 .attr('width', width)
                 .attr('height', height)
-                .style('background', '#ffffff');
+                .style('background', '#f5f5f5');
 
               projection = d3
                 .geoMercator()
@@ -524,12 +539,12 @@
               svg.call(zoom.transform, d3.zoomIdentity);
             }
           }
-          // 先繪製歷史邊界（底層）
+          // 先繪製縣市界線（底層）
+          drawCounties();
+          // 再繪製歷史邊界（最上層）
           if (historicalBoundaryData.value) {
             drawHistoricalBoundary();
           }
-          // 再繪製縣市界線（上層）
-          drawCounties();
         }
       };
 
@@ -558,7 +573,7 @@
             .append('svg')
             .attr('width', width)
             .attr('height', height)
-            .style('background', '#ffffff'); // 白色背景
+            .style('background', '#f5f5f5'); // 淺灰色背景
 
           // 創建投影 - 麥卡托投影，聚焦在台灣
           projection = d3
@@ -639,12 +654,12 @@
 
             if (createMap()) {
               console.log('[MapTab] 地圖創建成功，開始繪製圖層');
-              // 先繪製歷史邊界（底層）
+              // 先繪製縣市界線（底層）
+              drawCounties();
+              // 再繪製歷史邊界（最上層）
               if (historicalBoundaryData.value) {
                 drawHistoricalBoundary();
               }
-              // 再繪製縣市界線（上層）
-              drawCounties();
             } else {
               console.log('[MapTab] 地圖創建失敗，100ms 後重試');
               setTimeout(tryCreateMap, 100);
@@ -706,10 +721,11 @@
 
   #map-container {
     overflow: hidden;
+    background: #f5f5f5; /* 淺灰色背景，確保容器底色不是白色 */
   }
 
   :deep(.leaflet-container) {
-    background: #ffffff; /* 白色背景 */
+    background: #f5f5f5; /* 淺灰色背景 */
   }
 
   :deep(.leaflet-popup-content-wrapper) {
